@@ -786,6 +786,8 @@ final class Director {
         case .shamrock: "Shamrock! A green nose and blue cheeks!"
         case .confetti: "Confetti! A full head of rainbow hair!"
         case .pinwheel: "Pinwheel! Pink, teal and purple curls!"
+        case .bozo: "Bozo! Look at these big red wings of hair!"
+        case .redBozo: "Red Bozo! Orange wings and a red suit!"
         }
     }
 

@@ -499,6 +499,16 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
                                 y: sc.y + sin(ang) * (sc.y - shape.top + hr * 0.25 * a))
                 puff(ctx, at: c, radius: hr * 0.62 * a, colors[i % colors.count].color)
             }
+        case .wings:
+            // Bozo: a bald white dome, with big wings of hair swept up and out from each side.
+            for side in [-1.0, 1.0] {
+                for k in 0..<5 {
+                    let u = Double(k) / 4
+                    let c = CGPoint(x: sc.x + side * (shape.width * 0.95 + hr * (0.25 + u * 0.95) * a),
+                                    y: sc.y - hr * (0.05 + u * 0.75) * a)
+                    puff(ctx, at: c, radius: hr * (0.5 - u * 0.12) * a, wig)
+                }
+            }
         }
     }
 

@@ -124,14 +124,16 @@ enum ClownHair {
     case topknot
     /// A full head of curly hair in many colors, all the way round.
     case mop
+    /// Bozo's bald dome with huge swept wings of hair out each side.
+    case wings
 }
 
 /// What is printed on an alien clown's jumpsuit.
 enum ClownPattern { case moons, stars, dots, swirls, stripes, diamonds }
 
-/// The twelve types of alien clown the machine can make.
+/// The fourteen types of alien clown the machine can make.
 enum ClownKind: String, Codable, CaseIterable, Identifiable {
-    case moonbeam, starburst, lollipop, bigTop, dotty, ragtime, cottonCandy, jester, bluebell, shamrock, confetti, pinwheel
+    case moonbeam, starburst, lollipop, bigTop, dotty, ragtime, cottonCandy, jester, bluebell, shamrock, confetti, pinwheel, bozo, redBozo
 
     var id: Self { self }
 
@@ -144,6 +146,7 @@ enum ClownKind: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .bigTop: "Big Top"
         case .cottonCandy: "Cotton Candy"
+        case .redBozo: "Red Bozo"
         default: rawValue.capitalized
         }
     }
@@ -162,6 +165,8 @@ enum ClownKind: String, Codable, CaseIterable, Identifiable {
         case .shamrock: "Green nose, blue cheeks"
         case .confetti: "Orange nose, purple cheeks"
         case .pinwheel: "Purple nose, orange cheeks"
+        case .bozo: "Blue suit, big red wings"
+        case .redBozo: "Red suit, orange wings"
         }
     }
 
@@ -180,6 +185,8 @@ enum ClownKind: String, Codable, CaseIterable, Identifiable {
         case .shamrock: RGB(r: 0.98, g: 0.56, b: 0.16)
         case .confetti: RGB(r: 0.20, g: 0.36, b: 0.86)
         case .pinwheel: RGB(r: 0.55, g: 0.85, b: 0.25)
+        case .bozo: RGB(r: 0.16, g: 0.40, b: 0.88)
+        case .redBozo: RGB(r: 0.90, g: 0.14, b: 0.16)
         }
     }
 
@@ -198,6 +205,8 @@ enum ClownKind: String, Codable, CaseIterable, Identifiable {
         case .shamrock: RGB(r: 0.36, g: 0.66, b: 0.98)
         case .confetti: RGB(r: 1.00, g: 0.85, b: 0.20)
         case .pinwheel: RGB(r: 0.62, g: 0.30, b: 0.86)
+        case .bozo: RGB(r: 1.00, g: 1.00, b: 1.00)
+        case .redBozo: RGB(r: 0.20, g: 0.44, b: 0.92)
         }
     }
 
@@ -216,6 +225,8 @@ enum ClownKind: String, Codable, CaseIterable, Identifiable {
         case .shamrock: RGB(r: 0.14, g: 0.66, b: 0.26)
         case .confetti: RGB(r: 0.98, g: 0.30, b: 0.34)
         case .pinwheel: RGB(r: 1.00, g: 0.42, b: 0.72)
+        case .bozo: RGB(r: 0.92, g: 0.14, b: 0.16)
+        case .redBozo: RGB(r: 1.00, g: 1.00, b: 1.00)
         }
     }
 
@@ -232,6 +243,8 @@ enum ClownKind: String, Codable, CaseIterable, Identifiable {
         case .bluebell: RGB(r: 0.22, g: 0.42, b: 0.96)
         case .shamrock: RGB(r: 0.18, g: 0.72, b: 0.28)
         case .confetti, .pinwheel: hairColors[0]
+        case .bozo: RGB(r: 0.90, g: 0.12, b: 0.10)
+        case .redBozo: RGB(r: 1.00, g: 0.52, b: 0.08)
         }
     }
 
@@ -249,7 +262,7 @@ enum ClownKind: String, Codable, CaseIterable, Identifiable {
     /// The painted patches around the eyes.
     var makeup: RGB {
         switch self {
-        case .moonbeam, .cottonCandy, .bluebell, .confetti: RGB(r: 0.30, g: 0.62, b: 0.92)
+        case .moonbeam, .cottonCandy, .bluebell, .confetti, .bozo, .redBozo: RGB(r: 0.30, g: 0.62, b: 0.92)
         case .starburst, .jester, .shamrock, .pinwheel: RGB(r: 0.45, g: 0.35, b: 0.80)
         case .lollipop, .bigTop: RGB(r: 0.60, g: 0.30, b: 0.62)
         case .dotty, .ragtime: RGB(r: 0.72, g: 0.16, b: 0.26)
@@ -265,6 +278,7 @@ enum ClownKind: String, Codable, CaseIterable, Identifiable {
         case .ragtime, .shamrock: .spikes
         case .jester: .topknot
         case .confetti, .pinwheel: .mop
+        case .bozo, .redBozo: .wings
         }
     }
 
@@ -274,7 +288,7 @@ enum ClownKind: String, Codable, CaseIterable, Identifiable {
         case .starburst, .bluebell, .confetti: .stars
         case .lollipop, .pinwheel: .swirls
         case .bigTop, .ragtime: .stripes
-        case .dotty, .cottonCandy: .dots
+        case .dotty, .cottonCandy, .bozo, .redBozo: .dots
         case .jester, .shamrock: .diamonds
         }
     }

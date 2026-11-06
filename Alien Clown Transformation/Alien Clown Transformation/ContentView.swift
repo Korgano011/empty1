@@ -103,7 +103,7 @@ struct ContentView: View {
     }
 }
 
-/// The twelve types of alien clown in two rows of six, each previewed on whoever is strapped in.
+/// The fourteen types of alien clown in two rows of seven, each previewed on whoever is strapped in.
 struct ClownPicker: View {
     let person: Person
     let pick: (ClownKind) -> Void
@@ -112,7 +112,7 @@ struct ClownPicker: View {
         VStack(spacing: 10) {
             Text("What type of alien clown does \(person.id) want to be?")
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(100), spacing: 8), count: 6), spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(100), spacing: 8), count: 7), spacing: 8) {
                 ForEach(ClownKind.allCases) { kind in
                     Button {
                         pick(kind)
