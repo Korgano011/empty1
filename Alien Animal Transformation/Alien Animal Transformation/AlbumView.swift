@@ -88,9 +88,9 @@ struct AlbumView: View {
             }
             .confirmationDialog("Delete this trip?", isPresented: Binding(get: { pendingEvent != nil }, set: { if !$0 { pendingEvent = nil } }),
                                 presenting: pendingEvent) { event in
-                Button("Delete \(event.venue.name) trip", role: .destructive) { album.deleteEvent(event.id) }
+                Button("Delete \(event.title) trip", role: .destructive) { album.deleteEvent(event.id) }
             } message: { event in
-                Text("\(event.venue.name), \(event.date.formatted(date: .abbreviated, time: .shortened)), with all \(event.customers.count) customer photos. This can't be undone.")
+                Text("\(event.title), \(event.date.formatted(date: .abbreviated, time: .shortened)), with all \(event.customers.count) customer photos. This can't be undone.")
             }
         }
         #if os(macOS)
@@ -212,12 +212,12 @@ private struct EventRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: event.venue.icon)
+            Image(systemName: event.icon)
                 .font(.title2)
-                .foregroundStyle(event.venue.accent)
+                .foregroundStyle(event.accent)
                 .frame(width: 36)
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.venue.name).font(.system(.headline, design: .rounded))
+                Text(event.title).font(.system(.headline, design: .rounded))
                 Text(event.date.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption).foregroundStyle(.secondary)
                 Text("\(event.customers.count) transformed · \(event.asked) asked")
@@ -251,7 +251,7 @@ struct EventDetailView: View {
         if let event = album.events.first(where: { $0.id == eventID }) {
             ScrollView {
                 VStack(spacing: 16) {
-                    Label(event.date.formatted(date: .complete, time: .shortened), systemImage: event.venue.icon)
+                    Label(event.date.formatted(date: .complete, time: .shortened), systemImage: event.icon)
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     Text("Asked \(event.asked) \(event.asked == 1 ? "person" : "people") · \(event.customers.count) transformed")
                         .font(.system(.subheadline, design: .rounded)).foregroundStyle(.secondary)
@@ -274,7 +274,7 @@ struct EventDetailView: View {
                 }
                 .padding()
             }
-            .navigationTitle(event.venue.name)
+            .navigationTitle(event.title)
             .confirmationDialog("Delete this trip?", isPresented: $confirmDelete) {
                 Button("Delete", role: .destructive) {
                     album.deleteEvent(eventID)
@@ -335,9 +335,14 @@ struct Receipt: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("\(event.venue.shortName) Receipt").font(.system(.headline, design: .rounded, weight: .heavy))
-            row("Zoo setup", "-$\(event.fee)")
-            row("Transformations ($\(event.venue.price), kids $\(event.venue.kidPrice))", "+$\(event.earned)")
+            Text("\(event.shortTitle) Receipt").font(.system(.headline, design: .rounded, weight: .heavy))
+            if event.isCardGame {
+                row("Setup", "None — at home")
+                row("Transformations ($\(CasinoGame.transformFee) each)", "+$\(event.earned)")
+            } else {
+                row("Zoo setup", "-$\(event.fee)")
+                row("Transformations ($\(event.venue.price), kids $\(event.venue.kidPrice))", "+$\(event.earned)")
+            }
             Divider()
             row(event.profit >= 0 ? "Profit" : "Loss", "$\(abs(event.profit))")
                 .foregroundStyle(event.profit >= 0 ? .green : .red)

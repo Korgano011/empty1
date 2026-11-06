@@ -78,24 +78,41 @@ enum AnimalFeet { case hands, paws, trotters, hooves, pads, claws, scaly }
 /// The overall shape of an alien animal's head.
 enum AnimalHead { case round, wide, long }
 
-/// The fourteen types of alien animal the machine can make.
+/// The fifteen types of alien animal the machine can make.
 enum AnimalKind: String, Codable, CaseIterable, Identifiable {
-    case gorilla, lion, pig, tiger, rhinoceros, hippopotamus, elephant, aardvark, armadillo, zebra, horse, donkey, alligator, snake
+    case gorilla, pinkTiger, pig, tiger, rainbowTiger, rhinoceros, hippopotamus, elephant, aardvark, armadillo, zebra, horse, donkey, alligator, snake
 
     var id: Self { self }
 
     /// Anything unknown (an old insectoid photo) opens as a gorilla.
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
-        self = AnimalKind(rawValue: raw) ?? .gorilla
+        self = raw == "lion" ? .pinkTiger : AnimalKind(rawValue: raw) ?? .gorilla
     }
 
-    var name: String { rawValue.capitalized }
+    var name: String {
+        switch self {
+        case .pinkTiger: "Pink Tiger"
+        case .rainbowTiger: "Rainbow Tiger"
+        default: rawValue.capitalized
+        }
+    }
+
+    /// Tigers of every colour share the cat face, paws and striped tail.
+    var isTiger: Bool { [.tiger, .pinkTiger, .rainbowTiger].contains(self) }
+
+    /// The rainbow tiger's stripes run red → violet.
+    static let rainbow: [RGB] = [RGB(r: 0.92, g: 0.12, b: 0.14), RGB(r: 0.98, g: 0.52, b: 0.06), RGB(r: 0.98, g: 0.86, b: 0.08),
+                                 RGB(r: 0.16, g: 0.72, b: 0.22), RGB(r: 0.12, g: 0.42, b: 0.92), RGB(r: 0.48, g: 0.18, b: 0.78)]
+
+    /// The colour of stripe number `k`.
+    func stripe(_ k: Int) -> RGB { self == .rainbowTiger ? Self.rainbow[k % Self.rainbow.count] : dark }
 
     var blurb: String {
         switch self {
         case .gorilla: "Black fur, big strong hands"
-        case .lion: "Golden fur, a big mane"
+        case .pinkTiger: "Pink with dark stripes"
+        case .rainbowTiger: "White with rainbow stripes"
         case .pig: "Pink, curly tail, snout"
         case .tiger: "Orange with black stripes"
         case .rhinoceros: "Grey hide, two horns"
@@ -115,7 +132,8 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
     var fur: RGB {
         switch self {
         case .gorilla: RGB(r: 0.22, g: 0.22, b: 0.24)
-        case .lion: RGB(r: 0.88, g: 0.68, b: 0.36)
+        case .pinkTiger: RGB(r: 1.00, g: 0.52, b: 0.74)
+        case .rainbowTiger: RGB(r: 0.99, g: 0.97, b: 0.95)
         case .pig: RGB(r: 1.00, g: 0.72, b: 0.77)
         case .tiger: RGB(r: 0.96, g: 0.56, b: 0.14)
         case .rhinoceros: RGB(r: 0.60, g: 0.60, b: 0.62)
@@ -135,7 +153,8 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
     var dark: RGB {
         switch self {
         case .gorilla: RGB(r: 0.10, g: 0.10, b: 0.11)
-        case .lion: RGB(r: 0.60, g: 0.34, b: 0.12)
+        case .pinkTiger: RGB(r: 0.36, g: 0.06, b: 0.24)
+        case .rainbowTiger: RGB(r: 0.20, g: 0.14, b: 0.26)
         case .pig: RGB(r: 0.86, g: 0.48, b: 0.56)
         case .tiger: RGB(r: 0.12, g: 0.08, b: 0.06)
         case .rhinoceros: RGB(r: 0.38, g: 0.38, b: 0.40)
@@ -155,7 +174,8 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
     var light: RGB {
         switch self {
         case .gorilla: RGB(r: 0.42, g: 0.40, b: 0.42)
-        case .lion: RGB(r: 0.99, g: 0.91, b: 0.74)
+        case .pinkTiger: RGB(r: 1.00, g: 0.90, b: 0.95)
+        case .rainbowTiger: RGB(r: 1.00, g: 1.00, b: 1.00)
         case .pig: RGB(r: 1.00, g: 0.84, b: 0.86)
         case .tiger: RGB(r: 1.00, g: 0.98, b: 0.94)
         case .rhinoceros: RGB(r: 0.72, g: 0.72, b: 0.74)
@@ -173,7 +193,8 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
 
     var eye: RGB {
         switch self {
-        case .lion: RGB(r: 0.85, g: 0.60, b: 0.10)
+        case .pinkTiger: RGB(r: 0.30, g: 0.70, b: 0.95)
+        case .rainbowTiger: RGB(r: 0.62, g: 0.30, b: 0.90)
         case .tiger: RGB(r: 0.55, g: 0.80, b: 0.25)
         case .pig: RGB(r: 0.35, g: 0.55, b: 0.85)
         case .alligator: RGB(r: 0.86, g: 0.78, b: 0.16)
@@ -184,7 +205,7 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
 
     var pattern: AnimalPattern {
         switch self {
-        case .tiger: .tigerStripes
+        case .tiger, .pinkTiger, .rainbowTiger: .tigerStripes
         case .zebra: .zebraStripes
         case .armadillo: .armorBands
         case .rhinoceros, .elephant, .hippopotamus: .wrinkles
@@ -198,7 +219,7 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
     var ears: AnimalEars {
         switch self {
         case .gorilla: .small
-        case .lion, .tiger: .round
+        case .tiger, .pinkTiger, .rainbowTiger: .round
         case .pig: .pig
         case .rhinoceros, .zebra, .horse: .pointy
         case .hippopotamus: .tiny
@@ -212,7 +233,7 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
     var snout: AnimalSnout {
         switch self {
         case .gorilla: .ape
-        case .lion, .tiger: .cat
+        case .tiger, .pinkTiger, .rainbowTiger: .cat
         case .pig: .pig
         case .rhinoceros: .rhino
         case .hippopotamus: .hippo
@@ -228,10 +249,10 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
     var tail: AnimalTail {
         switch self {
         case .gorilla: .none
-        case .lion, .zebra, .donkey: .tuft
+        case .zebra, .donkey: .tuft
         case .horse: .long
         case .pig: .curly
-        case .tiger: .striped
+        case .tiger, .pinkTiger, .rainbowTiger: .striped
         case .rhinoceros, .hippopotamus, .elephant: .thin
         case .aardvark: .thick
         case .armadillo: .banded
@@ -243,7 +264,7 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
     var feet: AnimalFeet {
         switch self {
         case .gorilla: .hands
-        case .lion, .tiger: .paws
+        case .tiger, .pinkTiger, .rainbowTiger: .paws
         case .pig: .trotters
         case .zebra, .horse, .donkey: .hooves
         case .rhinoceros, .hippopotamus, .elephant: .pads
@@ -265,16 +286,16 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .gorilla, .hippopotamus, .elephant: 1.55
         case .rhinoceros, .pig: 1.4
-        case .lion, .tiger, .horse, .alligator: 1.25
+        case .tiger, .pinkTiger, .rainbowTiger, .horse, .alligator: 1.25
         default: 1.18
         }
     }
 
     /// A pale belly patch down the front.
-    var belly: Bool { [.lion, .tiger, .pig, .hippopotamus, .aardvark, .gorilla, .donkey, .alligator, .snake].contains(self) }
+    var belly: Bool { [.tiger, .pinkTiger, .rainbowTiger, .pig, .hippopotamus, .aardvark, .gorilla, .donkey, .alligator, .snake].contains(self) }
 
     /// Cats and reptiles have narrow slit pupils.
-    var slitEyes: Bool { [.lion, .tiger, .alligator, .snake].contains(self) }
+    var slitEyes: Bool { [.tiger, .pinkTiger, .rainbowTiger, .alligator, .snake].contains(self) }
 
     /// Mane and tail hair, for the horse family.
     var mane: RGB? {
@@ -287,13 +308,14 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
     }
 
     /// The colour that stands for this type on buttons and photo frames.
-    var color: Color { (self == .zebra ? dark : fur).color }
+    var color: Color { (self == .zebra ? dark : self == .rainbowTiger ? Self.rainbow[4] : fur).color }
 
     /// What she says when she sees herself.
     var reaction: String {
         switch self {
         case .gorilla: "Gorilla! Look at these big strong arms!"
-        case .lion: "Lion! Check out my mane — ROAR!"
+        case .pinkTiger: "Pink Tiger! Pretty pink fur with stripes — grrr!"
+        case .rainbowTiger: "Rainbow Tiger! Every color of the rainbow — ROAR!"
         case .pig: "Pig! A curly tail and a cute pink snout — oink!"
         case .tiger: "Tiger! Orange with black stripes — grrr!"
         case .rhinoceros: "Rhinoceros! I've got two horns!"
@@ -313,7 +335,8 @@ enum AnimalKind: String, Codable, CaseIterable, Identifiable {
     var sound: String {
         switch self {
         case .gorilla: "Ooh-ooh-ah-ah!"
-        case .lion: "ROAR!"
+        case .pinkTiger: "Grrr-purr!"
+        case .rainbowTiger: "ROAR!"
         case .pig: "Oink oink!"
         case .tiger: "Grrr!"
         case .rhinoceros: "Snort snort!"

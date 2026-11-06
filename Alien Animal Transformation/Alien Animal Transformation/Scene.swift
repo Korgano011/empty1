@@ -65,6 +65,30 @@ enum Stage {
     static let bankDoorX = 860.0
     static let dealerDoorX = 1030.0
 
+    // The spare room: the Animals of Poker machine, whoever is playing it, and anyone watching.
+    static let pokerX = 860.0
+    static let pokerPlayerX = 770.0
+    static let spareWatchX = [560.0, 620.0, 670.0]
+    static let spareDoorX = 150.0
+    /// Where the mini saucer tucks away inside the machine's topper.
+    static let miniHome = CGPoint(x: pokerX, y: floorY - 292)
+
+    // The backyard cottage: the backyard runs from the left edge to the cottage's open front at `cottageWallX`.
+    static let cottageWallX = 310.0
+    static let backPodX = 150.0
+    static let backLine = [95.0, 150.0, 205.0]
+    /// Anyone not in a chair waits here, between the chairs and the console.
+    static let cottageStandX = [790.0, 835.0, 880.0]
+
+    // A card game at home: Debbie and the girls invite passers-by from the front yard; guests wait in the living room,
+    // and later in the backyard by the cottage.
+    static let inviteX = [300.0, 345.0, 385.0]
+    static let inviteStopX = [215.0, 180.0]
+    static let guestWaitX = [470.0, 500.0, 530.0, 590.0, 620.0, 640.0]
+    static let backyardWaitX = [60.0, 100.0, 140.0, 180.0, 220.0, 260.0]
+    /// Everyone round the card table in the living room.
+    static let tableCrowdX = [440.0, 470.0, 500.0, 530.0, 560.0, 590.0, 620.0, 645.0, 455.0, 515.0, 575.0]
+
     // The accident at the airport: where the cab and the shuttle bus meet.
     static let crashX = 600.0
     static let taxiLength = 210.0
@@ -96,7 +120,7 @@ enum Stage {
     }
 }
 
-enum Place { case house, pod, venue, town, shops, road, office }
+enum Place { case house, pod, venue, town, shops, spareRoom, cottage }
 
 enum Card { case deal, note }
 
@@ -126,17 +150,33 @@ func drawStage(_ ctx: GraphicsContext, size: CGSize, director d: Director, now: 
         for p in seated { drawPerson(ctx, p, feet: feet(p), facing: p.facing, now: now) }
         for p in seated { drawStraps(ctx, p, d: d, now: now) }
         for p in people where !p.crew && !p.seated { drawPerson(ctx, p, feet: feet(p), facing: p.facing, now: now) }
-    case .house, .venue, .town, .shops, .road, .office:
+    case .spareRoom:
+        drawSpareRoom(ctx, d: d, now: now)
+        for p in people { drawPerson(ctx, p, feet: feet(p), facing: p.facing, now: now) }
+        if let mini = d.miniSaucer(at: now) { drawMiniSaucer(ctx, at: mini, d: d, now: now) }
+    case .cottage:
+        drawCottage(ctx, d: d, now: now)
+        var machine = ctx
+        machine.opacity = d.cottageMachineLevel(at: now)
+        if machine.opacity > 0 {
+            for x in Stage.chairX { drawChairBack(machine, x: x, d: d, now: now) }
+            drawConsole(machine, d: d, now: now)
+        }
+        let seated = people.filter(\.seated)
+        for p in seated { drawSeat(ctx, p, x: p.x(at: now)) }
+        for p in seated { drawPerson(ctx, p, feet: feet(p), facing: p.facing, now: now) }
+        for p in seated { drawStraps(ctx, p, d: d, now: now) }
+        let pod = d.pod(at: now)
+        for p in people where !p.seated && p.rise(at: now) < 0.5 { drawPerson(ctx, p, feet: feet(p), facing: p.facing, now: now) }
+        var lifted = ctx
+        if let pod { lifted.clip(to: Path(CGRect(x: 0, y: pod.y + 20, width: Stage.W, height: Stage.H))) }
+        for p in people where !p.seated && p.rise(at: now) >= 0.5 { drawPerson(lifted, p, feet: feet(p), facing: p.facing, now: now) }
+        if let pod {
+            drawFlyingPod(ctx, at: pod, now: now)
+            drawBeam(ctx, from: pod, d: d, now: now)
+        }
+    case .house, .venue, .town, .shops:
         switch d.place {
-        case .road:
-            drawAirport(ctx, now: now)
-            if let police = d.police(at: now) { drawAirportVehicle(ctx, x: police, police: true, now: now) }
-            if let ops = d.ops(at: now) { drawAirportVehicle(ctx, x: ops, police: false, now: now) }
-            if let bus = d.bus(at: now) { drawShuttleBus(ctx, x: bus, dented: d.crashT0 != nil) }
-            if let taxi = d.taxi(at: now) { drawTaxi(ctx, x: taxi, dented: d.crashT0 != nil, now: now) }
-            if let t0 = d.crashT0 { drawCrashSmoke(ctx, at: CGPoint(x: Stage.crashX, y: Stage.floorY - 40), since: t0, now: now) }
-        case .office:
-            drawCabOffice(ctx, now: now)
         case .town:
             drawTown(ctx, now: now)
         case .shops:
@@ -163,6 +203,8 @@ func drawStage(_ ctx: GraphicsContext, size: CGSize, director d: Director, now: 
             drawFlyingPod(ctx, at: pod, now: now)
             drawBeam(ctx, from: pod, d: d, now: now)
         }
+        // The poker machine's mini saucer, out hunting through the house.
+        if d.place == .house, let mini = d.miniSaucer(at: now) { drawMiniSaucer(ctx, at: mini, d: d, now: now) }
     }
     if d.place == .house && d.night { drawNight(ctx, now: now) }
     if d.place == .house { drawSnores(ctx, d: d, now: now) }
@@ -177,7 +219,7 @@ func drawStage(_ ctx: GraphicsContext, size: CGSize, director d: Director, now: 
     if let card = d.card, cardUp { drawCard(screen, card) }
     if d.venue == nil && !cardUp { drawHUD(screen, d: d, now: now) }
     drawClock(screen, d: d, now: now)
-    if d.place == .pod { drawMirror(screen, d: d, now: now) }
+    if d.place == .pod || d.place == .cottage || !d.mirrorFolks.isEmpty { drawMirror(screen, d: d, now: now) }
     let fade = d.fade(at: now)
     if fade > 0 {
         screen.fill(Path(CGRect(x: 0, y: 0, width: Stage.W, height: Stage.H)), with: .color(.black.opacity(fade)))
@@ -230,8 +272,6 @@ private func drawHouse(_ ctx: GraphicsContext, d: Director, now: Date) {
     drawSky(ctx)
     fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: Stage.H - Stage.floorY), Color(red: 0.45, green: 0.72, blue: 0.35))
     drawFrontYard(ctx)
-    if let truck = d.truck(at: now) { drawFlatbed(ctx, x: truck, now: now) }
-    if let bike = d.repoBike(at: now) { drawMotorcycle(ctx, x: bike.x, ground: bike.ground, paint: Color(red: 0.10, green: 0.10, blue: 0.12)) }
     // Wheels of their own, bought out of their savings
     if let x = d.parked(.car, at: now) {
         drawCar(ctx, x: x, hooked: false, paint: Color(red: 0.85, green: 0.16, blue: 0.20), noseRight: true)
@@ -285,6 +325,7 @@ private func drawHouse(_ ctx: GraphicsContext, d: Director, now: Date) {
     let blankets = [Color(red: 0.35, green: 0.50, blue: 0.85), Color(red: 0.95, green: 0.50, blue: 0.65), Color(red: 0.50, green: 0.80, blue: 0.40)]
     for (x, blanket) in zip(Stage.bedX, blankets) { drawBed(ctx, x: x, width: x > 1000 ? 80 : 100, blanket: blanket) }
     drawSleepers(ctx, d: d)
+    drawHider(ctx, d: d, now: now)
     // A lamp for Debbie, a unicorn poster for Hailey, a teddy bear for Molly
     fill(ctx, CGRect(x: 812, y: Stage.floorY - 108, width: 12, height: 18), Color(red: 1, green: 0.92, blue: 0.6), corner: 3)
     fill(ctx, CGRect(x: 816, y: Stage.floorY - 90, width: 4, height: 80), .gray)
@@ -497,6 +538,23 @@ private func drawSleepers(_ ctx: GraphicsContext, d: Director) {
             lid.addArc(center: CGPoint(x: head.x + dx, y: head.y), radius: 2.2, startAngle: .zero, endAngle: .degrees(180), clockwise: false)
             ctx.stroke(lid, with: .color(.black.opacity(0.7)), lineWidth: 1)
         }
+    }
+}
+
+/// Someone hiding in bed: a trembling lump under her blanket, with two eyes peeking out at the top.
+private func drawHider(_ ctx: GraphicsContext, d: Director, now: Date) {
+    guard let id = d.hiding, let i = d.cast.firstIndex(where: { $0.id == id }) else { return }
+    let x = Stage.bedX[i], w = x > 1000 ? 80.0 : 100.0
+    let shake = sin(now.timeIntervalSinceReferenceDate * 30) * 1.5
+    let blanket = [Color(red: 0.35, green: 0.50, blue: 0.85), Color(red: 0.95, green: 0.50, blue: 0.65), Color(red: 0.50, green: 0.80, blue: 0.40)][i]
+    let lump = CGRect(x: x + 6 + shake, y: Stage.floorY - 78, width: w - 12, height: 38)
+    ctx.fill(Path(roundedRect: lump, cornerRadius: 18), with: .color(blanket))
+    ctx.stroke(Path(roundedRect: lump, cornerRadius: 18), with: .color(.black.opacity(0.2)), lineWidth: 1.5)
+    let peek = CGPoint(x: lump.minX + 22, y: lump.minY + 6)
+    ctx.fill(Path(ellipseIn: CGRect(x: peek.x - 12, y: peek.y - 7, width: 24, height: 10)), with: .color(Color.black.opacity(0.75)))
+    for dx in [-5.0, 5.0] {
+        ctx.fill(circle(CGPoint(x: peek.x + dx, y: peek.y - 2), 3), with: .color(.white))
+        ctx.fill(circle(CGPoint(x: peek.x + dx, y: peek.y - 2), 1.4), with: .color(.black))
     }
 }
 
@@ -953,7 +1011,9 @@ private func drawStraps(_ ctx: GraphicsContext, _ p: Person, d: Director, now: D
 private func drawMirror(_ screen: GraphicsContext, d: Director, now: Date) {
     let u = d.mirror(at: now)
     guard u > 0 else { return }
-    let seated = d.everyone.filter { $0.visible && $0.seated && !$0.crew }
+    let standing = !d.mirrorFolks.isEmpty
+    let seated = standing ? d.everyone.filter { $0.visible && d.mirrorFolks.contains($0.id) }
+                          : d.everyone.filter { $0.visible && $0.seated && !$0.crew }
     guard let lo = seated.map({ $0.x(at: now) }).min(), let hi = seated.map({ $0.x(at: now) }).max() else { return }
     let vw = max(420, hi - lo + 200), vh = vw * Stage.H / Stage.W
     let view = CGRect(x: (lo + hi) / 2 - vw / 2, y: Stage.floorY + 15 - vh, width: vw, height: vh)
@@ -978,12 +1038,23 @@ private func drawMirror(_ screen: GraphicsContext, d: Director, now: Date) {
     m.translateBy(x: glass.maxX, y: glass.minY)
     m.scaleBy(x: -w / view.width, y: w / view.width)
     m.translateBy(x: -view.minX, y: -view.minY)
-    drawPodInterior(m, d: d, now: now)
     func feet(_ p: Person) -> CGPoint { CGPoint(x: p.x(at: now), y: Stage.floorY - p.rise(at: now)) }
-    for x in Stage.chairX { drawChairBack(m, x: x, d: d, now: now) }
-    for p in seated { drawSeat(m, p, x: p.x(at: now)) }
-    for p in seated { drawPerson(m, p, feet: feet(p), facing: -p.facing, now: now) }
-    for p in seated { drawStraps(m, p, d: d, now: now) }
+    if standing {
+        // Standing in front of a house mirror: the room behind them, then them, facing out of the glass.
+        if d.place == .spareRoom { drawSpareRoom(m, d: d, now: now) } else { drawHouse(m, d: d, now: now) }
+        for p in seated.sorted(by: { $0.height > $1.height }) { drawPerson(m, p, feet: feet(p), facing: 0, now: now) }
+    } else {
+        if d.place == .cottage {
+            drawCottage(m, d: d, now: now)
+            drawConsole(m, d: d, now: now)
+        } else {
+            drawPodInterior(m, d: d, now: now)
+        }
+        for x in Stage.chairX { drawChairBack(m, x: x, d: d, now: now) }
+        for p in seated { drawSeat(m, p, x: p.x(at: now)) }
+        for p in seated { drawPerson(m, p, feet: feet(p), facing: -p.facing, now: now) }
+        for p in seated { drawStraps(m, p, d: d, now: now) }
+    }
 
     var sheen = screen
     sheen.clip(to: Path(roundedRect: glass, cornerRadius: 12))
@@ -1065,6 +1136,7 @@ private func drawCard(_ ctx: GraphicsContext, _ card: Card) {
         "   Long Branch NJ, the Atlantic City boardwalk, Myrtle Beach,",
         "   and the Crystal Coast of North Carolina.",
         "The only catch: you have to pay for the setup.",
+        "Change in your own machine in the backyard cottage — then we pick you up.",
         "Two of you go outside to ask customers if they want to be an alien animal.",
         "One of you stays inside to work the machine.",
         "Their transformation will dissolve in 8 hours.",

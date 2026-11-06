@@ -212,12 +212,12 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
         return c
     }
     /// Short bands across a limb: tiger and zebra stripes.
-    func limbStripes(_ c: GraphicsContext, _ pts: [CGPoint], width w: Double, count: Int) {
+    func limbStripes(_ c: GraphicsContext, _ pts: [CGPoint], width w: Double, count: Int, offset: Int = 0) {
         for k in 0..<count {
             let u = (Double(k) + 0.6) / (Double(count) + 0.4)
             let pt = u < 0.5 ? lerp(pts[0], pts[1], u * 2) : lerp(pts[1], pts[2], u * 2 - 1)
             c.stroke(polyline([CGPoint(x: pt.x - w * 0.5, y: pt.y - w * 0.12), CGPoint(x: pt.x + w * 0.5, y: pt.y + w * 0.12)]),
-                     with: .color(dark), lineWidth: w * (kind.pattern == .zebraStripes ? 0.26 : 0.18))
+                     with: .color(kind.stripe(k + offset).color), lineWidth: w * (kind.pattern == .zebraStripes ? 0.26 : 0.18))
         }
     }
     let skinHead = p.skin.mixed(with: kind.fur, lv.head * 0.97).color
@@ -267,7 +267,17 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
             tail.move(to: base)
             tail.addCurve(to: tip, control1: CGPoint(x: base.x + back * h * 0.14, y: base.y + h * 0.08), control2: CGPoint(x: tip.x, y: tip.y + h * 0.1))
             tc.stroke(tail, with: .color(fur), style: limbStyle(h * 0.028))
-            tc.stroke(tail, with: .color(dark), style: StrokeStyle(lineWidth: h * 0.029, lineCap: .butt, dash: [h * 0.015, h * 0.03], dashPhase: h * 0.01))
+            if kind == .rainbowTiger {
+                // One dash pass per colour, so the bands run red → violet down the tail.
+                let n = AnimalKind.rainbow.count, period = h * 0.045
+                for k in 0..<n {
+                    tc.stroke(tail, with: .color(kind.stripe(k).color),
+                              style: StrokeStyle(lineWidth: h * 0.029, lineCap: .butt, dash: [h * 0.015, period * Double(n) - h * 0.015],
+                                                 dashPhase: h * 0.01 - period * Double(k)))
+                }
+            } else {
+                tc.stroke(tail, with: .color(dark), style: StrokeStyle(lineWidth: h * 0.029, lineCap: .butt, dash: [h * 0.015, h * 0.03], dashPhase: h * 0.01))
+            }
             tc.fill(circle(tip, h * 0.015), with: .color(dark))
         case .curly:
             var tail = Path()
@@ -384,7 +394,7 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
         let pts = [pose.hip[i], pose.knee[i], ankle]
         legs.stroke(polyline(pts), with: .color(fur), style: limbStyle(lw))
         switch kind.pattern {
-        case .tigerStripes: limbStripes(legs, pts, width: lw, count: 4)
+        case .tigerStripes: limbStripes(legs, pts, width: lw, count: 4, offset: 2)
         case .zebraStripes: limbStripes(legs, pts, width: lw, count: 6)
         case .armorBands:
             for k in 0..<4 { limbStripes(legs, [lerp(pose.knee[i], ankle, 0.1 * Double(k)), pose.knee[i], ankle], width: lw * 0.9, count: 1) }
@@ -501,7 +511,7 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
                     s.addQuadCurve(to: CGPoint(x: edge - side * r.width * 0.32, y: y + r.height * 0.05), control: CGPoint(x: edge - side * r.width * 0.15, y: y - r.height * 0.02))
                     s.addQuadCurve(to: CGPoint(x: edge, y: y + r.height * 0.04), control: CGPoint(x: edge - side * r.width * 0.12, y: y + r.height * 0.06))
                     s.closeSubpath()
-                    printed.fill(s, with: .color(dark))
+                    printed.fill(s, with: .color(kind.stripe(k + (side > 0 ? 2 : 0)).color))
                 }
             }
         case .zebraStripes:
@@ -659,17 +669,6 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
     let sc = shape.center
     let headH = shape.bottom - shape.top
     if a > 0 {
-        // A lion's big shaggy mane, all the way round her face.
-        if kind == .lion {
-            for ring in 0..<2 {
-                for k in 0..<18 {
-                    let ang = (Double(k) + Double(ring) * 0.5) / 18 * 2 * .pi
-                    let rr = ring == 0 ? 1.0 : 0.82
-                    let c = CGPoint(x: sc.x + cos(ang) * shape.width * 1.32 * rr, y: sc.y + hr * 0.15 + sin(ang) * headH * 0.62 * rr)
-                    ctx.fill(circle(c, hr * (ring == 0 ? 0.5 : 0.45) * a), with: .color(ring == 0 ? dark : kind.dark.mixed(with: kind.fur, 0.45).color))
-                }
-            }
-        }
         // Ears
         for side in [-1.0, 1.0] {
             switch kind.ears {
@@ -683,7 +682,7 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
                 let r = hr * (tiny ? 0.17 : 0.33) * a
                 ctx.fill(circle(c, r), with: .color(fur))
                 ctx.stroke(circle(c, r), with: .color(dark.opacity(0.5)), lineWidth: max(0.5, hr * 0.04))
-                ctx.fill(circle(CGPoint(x: c.x, y: c.y + r * 0.1), r * 0.55), with: .color(kind == .tiger ? Color.white : light))
+                ctx.fill(circle(CGPoint(x: c.x, y: c.y + r * 0.1), r * 0.55), with: .color(kind.isTiger ? Color.white : light))
             case .pig:
                 var ear = Path()
                 ear.move(to: CGPoint(x: sc.x + side * shape.width * 0.4, y: shape.top + hr * 0.12))
@@ -747,12 +746,12 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
         switch kind.pattern {
         case .tigerStripes:
             for dx in [-0.18, 0.0, 0.18] {
-                face.stroke(polyline([CGPoint(x: sc.x + dx * hr, y: shape.top), CGPoint(x: sc.x + dx * hr * 0.7, y: shape.top + hr * 0.45)]), with: .color(dark), lineWidth: hr * 0.1)
+                face.stroke(polyline([CGPoint(x: sc.x + dx * hr, y: shape.top), CGPoint(x: sc.x + dx * hr * 0.7, y: shape.top + hr * 0.45)]), with: .color(kind.stripe(Int((dx + 0.18) / 0.18)).color), lineWidth: hr * 0.1)
             }
             for side in [-1.0, 1.0] {
                 for k in 0..<2 {
                     let y = sc.y + hr * (0.1 + Double(k) * 0.22)
-                    face.stroke(polyline([CGPoint(x: sc.x + side * shape.width, y: y), CGPoint(x: sc.x + side * shape.width * 0.62, y: y + hr * 0.08)]), with: .color(dark), lineWidth: hr * 0.09)
+                    face.stroke(polyline([CGPoint(x: sc.x + side * shape.width, y: y), CGPoint(x: sc.x + side * shape.width * 0.62, y: y + hr * 0.08)]), with: .color(kind.stripe(3 + k).color), lineWidth: hr * 0.09)
                 }
             }
         case .zebraStripes:
@@ -955,7 +954,7 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
             nose.addLine(to: CGPoint(x: mx + hr * 0.15, y: sc.y + hr * 0.22))
             nose.addLine(to: CGPoint(x: mx, y: sc.y + hr * 0.38))
             nose.closeSubpath()
-            sn.fill(nose, with: .color(kind == .lion ? Color(red: 0.35, green: 0.2, blue: 0.12) : Color(red: 0.95, green: 0.55, blue: 0.6)))
+            sn.fill(nose, with: .color(kind == .pinkTiger ? Color(red: 0.55, green: 0.1, blue: 0.35) : Color(red: 0.95, green: 0.55, blue: 0.6)))
             for side in [-1.0, 1.0] {
                 for k in -1...1 {
                     let y0 = sc.y + hr * (0.45 + Double(k) * 0.08)
@@ -1121,18 +1120,20 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
             ctx.stroke(tusk, with: .color(.black.opacity(0.25 * a)), lineWidth: max(0.5, hr * 0.025))
         }
         // The trunk grows out of her nose, longer and thicker as the change goes on.
-        let swing = sin(tt * 2) * hr * 0.08 * a
+        // Grown-ups get a longer trunk than the kids.
+        let reach = p.isKid ? 1.0 : 1.45
+        let swing = sin(tt * 2) * hr * 0.08 * a * reach
         let root = CGPoint(x: mx, y: sc.y + hr * 0.18)
-        let ctrl = CGPoint(x: mx - facing * hr * 0.2 * a, y: root.y + hr * 1.9 * a)
-        let tip = CGPoint(x: mx + facing * hr * 0.7 * a + swing * 2, y: root.y + hr * 2.8 * a)
+        let ctrl = CGPoint(x: mx - facing * hr * 0.2 * a * reach, y: root.y + hr * 1.9 * a * reach)
+        let tip = CGPoint(x: mx + facing * hr * 0.7 * a * reach + swing * 2, y: root.y + hr * 2.8 * a * reach)
         let tw = hr * mix(0.16, 0.38, a)
         var trunk = Path()
         trunk.move(to: root)
         trunk.addQuadCurve(to: tip, control: ctrl)
         ctx.stroke(trunk, with: .color(dark.opacity(a)), style: limbStyle(tw + hr * 0.06))
         ctx.stroke(trunk, with: .color(skinHead), style: limbStyle(tw))
-        for k in 1...10 where a > 0.3 {
-            let u = Double(k) / 11
+        for k in 1...(p.isKid ? 10 : 14) where a > 0.3 {
+            let u = Double(k) / Double(p.isKid ? 11 : 15)
             let pt = lerp(lerp(root, ctrl, u), lerp(ctrl, tip, u), u)
             ctx.stroke(polyline([CGPoint(x: pt.x - tw * 0.34, y: pt.y), CGPoint(x: pt.x + tw * 0.34, y: pt.y)]), with: .color(dark.opacity(0.5 * a)), lineWidth: max(0.5, hr * 0.025))
         }

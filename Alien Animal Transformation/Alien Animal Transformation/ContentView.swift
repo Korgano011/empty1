@@ -61,6 +61,12 @@ struct ContentView: View {
             } else if let rider = director.choosingKind {
                 AnimalPicker(person: rider) { director.choose($0) }
                     .transition(.scale.combined(with: .opacity))
+            } else if director.choosingOuting {
+                ScrollView {
+                    OutingPicker(cash: director.cash) { director.chooseOuting($0) }
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .transition(.scale.combined(with: .opacity))
             } else if director.choosingVenue {
                 VenuePicker(cash: director.cash) { director.choose($0) }
                     .transition(.scale.combined(with: .opacity))
@@ -78,10 +84,19 @@ struct ContentView: View {
                         .frame(width: 300)
                 }
                 HStack(spacing: 12) {
-                    Button(director.running ? "Start Over" : (director.finished ? "Play Again" : "Start")) {
+                    if let save = director.saved {
+                        // Every morning is saved automatically; this picks the game up from the last one.
+                        Button("Continue Day \(save.day)", systemImage: "arrow.clockwise.circle.fill") {
+                            director.start(resume: true)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                    }
+                    Button(director.running ? "Start Over" : (director.finished ? "Play Again" : director.saved == nil ? "Start" : "New Game")) {
                         director.start()
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(director.saved == nil ? nil : .gray)
                     Button("Album (\(director.album.entries.count))", systemImage: "photo.on.rectangle.angled") {
                         showAlbum = true
                     }
@@ -93,17 +108,47 @@ struct ContentView: View {
         }
         .padding()
         .animation(.spring(duration: 0.35), value: director.choosingVenue)
+        .animation(.spring(duration: 0.35), value: director.choosingOuting)
         .animation(.spring(duration: 0.35), value: director.choosingNext)
         .animation(.spring(duration: 0.35), value: director.choosingKind?.id)
         .animation(.spring(duration: 0.35), value: director.choosingVehicle)
         .animation(.spring(duration: 0.35), value: director.choosingVacation)
+        .overlay {
+            // The Animals of Poker machine's screen fills the window while someone is playing it.
+            if let poker = director.poker {
+                PokerMachineView(session: poker)
+                    .overlay(alignment: .topLeading) {
+                        Button {
+                            director.muted.toggle()
+                        } label: {
+                            Image(systemName: director.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                .padding(8)
+                                .background(.regularMaterial, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(8)
+                    }
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.4), value: director.poker == nil)
+        .overlay {
+            // While a card game is dealt at home, the table is seen from above.
+            if let board = director.board {
+                CasinoTableView(director: director, board: board)
+                    .padding(8)
+                    .background(Color.black)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.4), value: director.board == nil)
         .sheet(isPresented: $showAlbum) {
             AlbumView(album: director.album)
         }
     }
 }
 
-/// The fourteen types of alien animal in two rows of seven, each previewed on whoever is strapped in.
+/// The fifteen types of alien animal in two rows of eight, each previewed on whoever is strapped in.
 struct AnimalPicker: View {
     let person: Person
     let pick: (AnimalKind) -> Void
@@ -112,7 +157,7 @@ struct AnimalPicker: View {
         VStack(spacing: 10) {
             Text("What type of alien animal does \(person.id) want to be?")
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(100), spacing: 8), count: 7), spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(100), spacing: 8), count: 8), spacing: 8) {
                 ForEach(AnimalKind.allCases) { kind in
                     Button {
                         pick(kind)
@@ -273,7 +318,6 @@ struct NextPicker: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(buttonRed)
-            .disabled(!canAfford)
             Button {
                 pick(false)
             } label: {
@@ -281,7 +325,7 @@ struct NextPicker: View {
                     .frame(width: 180)
             }
             .buttonStyle(.bordered)
-            Text(canAfford ? prompt : "Not enough cash for another setup fee ($\(Venue.cheapestFee)).")
+            Text(canAfford ? prompt : "Not enough cash for a zoo setup fee ($\(Venue.cheapestFee)) — but a card game at home is free to host.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

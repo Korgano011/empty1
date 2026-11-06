@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Something sliding along the street: the cab, the shuttle bus, the airport's vehicles, the repo men's flatbed.
+/// Something sliding along the street.
 struct Slide {
     var from = 0.0, to = 0.0, t0 = Date.distantPast, dur = 0.0
     /// Pulls away slowly at first rather than rolling at a steady speed.
@@ -32,7 +32,7 @@ final class Director {
     var molly: Person
 
     var cast: [Person] { [debbie, hailey, molly] }
-    /// The shuttle bus driver, Debbie's boss, the two repo men, and the airport police officer.
+    /// Nobody else for now.
     var extras: [Person] = []
     /// The flying zoo's alien animals; the last one is their commander.
     var crew: [Person] = []
@@ -49,29 +49,31 @@ final class Director {
     var caption = "Tap Start to begin."
     var running = false
     var finished = false
-    var muted = false { didSet { sound.muted = muted } }
+    var muted = false { didSet { sound.muted = muted; poker?.voice.muted = muted } }
 
-    var place = Place.road
-    /// The glowing red button the alien animals leave in the living room.
+    var place = Place.house
+    /// The glowing red button the alien animals leave in the living room (no longer used: the cottage console has it).
     var buttonShown = false
     var buttonPressT0 = Date.distantPast
 
-    // The accident
-    var taxiShown = false
-    var busShown = false
-    var policeShown = false
-    var opsShown = false
-    private var taxiSlide = Slide()
-    private var busSlide = Slide()
-    private var policeSlide = Slide()
-    private var opsSlide = Slide()
-    var crashT0: Date?
+    // The spare room: the Animals of Poker machine and its mini saucer
+    /// The sitting being played right now; ContentView puts the machine's screen up while it's set.
+    var poker: PokerSession?
+    var pokerScreen = "INSERT CREDITS"
+    var miniShown = false
+    /// Who is hiding under her blanket in bed (drawn as a trembling lump).
+    var hiding: String?
+    var miniBeamOn = false
+    var miniBeamT0 = Date.distantPast
+    var miniBeamTint = Color.green
+    private var miniFrom = CGPoint.zero
+    private var miniTo = CGPoint.zero
+    private var miniT0 = Date.distantPast
+    private var miniDur = 0.0
 
-    // The driveway: Debbie's motorcycle and the repo men's flatbed
-    var bikeShown = false
-    var bikeLoaded = false
-    var truckShown = false
-    private var truckSlide = Slide.parked(at: Stage.truckX)
+    // The backyard cottage, once the flying zoo installs its transformation machine
+    var cottageMachine = false
+    var cottageMachineT0 = Date.distantFuture
 
     // The flying zoo
     var podShown = false
@@ -91,6 +93,8 @@ final class Director {
     var screen = "READY"
     var mirrorT0 = Date.distantFuture
     var mirrorUpT0 = Date.distantPast
+    /// Who the mirror reflects when it's a standing mirror in the house or spare room (not the chairs).
+    var mirrorFolks: [String] = []
     /// Whoever is waiting for the player to pick her type of alien animal.
     var choosingKind: Person?
 
@@ -136,6 +140,30 @@ final class Director {
     private var arriveT0 = Date.distantPast
     var choosingVehicle = false
 
+    /// The last saved morning, if there is one: "Continue" picks the game up from there.
+    var saved: SaveGame? = SaveGame.load()
+
+    // Card games hosted at home
+    /// Waiting for you to pick a flying zoo trip or a card game.
+    var choosingOuting = false
+    var cardGames = 0
+    /// The scoreboard while a game is on; the table view seats one person per row.
+    var board: TableBoard?
+    /// Who sits in each scoreboard row.
+    var tableSeats: [Person] = []
+    /// The cards on the table, by game seat.
+    var tableGroups: [FeltGroup] = []
+    /// Your scoreboard row, if you're playing.
+    var humanRow: Int?
+    /// Who you are at this table, if you're playing.
+    var you: String?
+    /// Your cards, shown along the bottom of the table.
+    var myHand: [PlayingCard] = []
+    /// What the table is waiting for you to decide.
+    var prompt: PlayerPrompt?
+    /// Let the computer make your plays.
+    var autoPlay = false
+
     static let vacationCost = 150
 
     @ObservationIgnored let sound = Sound()
@@ -146,6 +174,17 @@ final class Director {
     @ObservationIgnored private var nextPick: CheckedContinuation<Bool, Never>?
     @ObservationIgnored private var vacationPick: CheckedContinuation<Bool, Never>?
     @ObservationIgnored private var vehiclePick: CheckedContinuation<Vehicle?, Never>?
+    @ObservationIgnored private var pokerDone: CheckedContinuation<Void, Never>?
+    /// Credits still on the Animals of Poker when the last player reached game 10; they're paid out to the family.
+    @ObservationIgnored private var leftoverCredits = 0
+    @ObservationIgnored private var outingPick: CheckedContinuation<Outing, Never>?
+    @ObservationIgnored private var answerWait: CheckedContinuation<PlayerAnswer, Never>?
+    /// What the computer would have played, used if you switch on auto-play or start over mid-question.
+    @ObservationIgnored private var answerAuto: PlayerAnswer?
+    @ObservationIgnored private var guestWomen: [String] = []
+    @ObservationIgnored private var guestKids: [String] = []
+    /// Someone new to all this, and what she says when the zoo comes to pick them up.
+    @ObservationIgnored private var pickupNewcomer: (Person, (spot: String, beam: String))?
     @ObservationIgnored private var served: [PersonSpec] = []
     @ObservationIgnored private var asked = 0
     @ObservationIgnored private var earned = 0
@@ -175,23 +214,6 @@ final class Director {
                            shirt: RGB(r: 0.55, g: 0.80, b: 0.40), pants: RGB(r: 0.95, g: 0.75, b: 0.30), kid: true, x: Stage.livingX[2])
         for p in [debbie, hailey, molly] { p.visible = false }
         return (debbie, hailey, molly)
-    }
-
-    private static func makeExtras() -> [Person] {
-        let driver = Person("Gary", height: 174, skin: RGB(r: 0.92, g: 0.74, b: 0.62), hair: RGB(r: 0.30, g: 0.22, b: 0.14), style: .short,
-                            shirt: RGB(r: 0.12, g: 0.35, b: 0.72), pants: RGB(r: 0.30, g: 0.32, b: 0.40), shorts: false, female: false, x: -60)
-        let boss = Person("Mr. Dorsey", height: 172, skin: RGB(r: 0.94, g: 0.78, b: 0.66), hair: RGB(r: 0.70, g: 0.70, b: 0.72), style: .short,
-                          shirt: RGB(r: 0.20, g: 0.22, b: 0.32), pants: RGB(r: 0.20, g: 0.22, b: 0.32), shorts: false, female: false, x: -60)
-        let repos = [("Vince", RGB(r: 0.30, g: 0.34, b: 0.42)), ("Sal", RGB(r: 0.55, g: 0.25, b: 0.20))].map { name, shirt in
-            Person(name, height: name == "Vince" ? 176 : 170, skin: RGB(r: 0.85, g: 0.65, b: 0.50), hair: RGB(r: 0.15, g: 0.12, b: 0.10), style: .short,
-                   shirt: shirt, pants: RGB(r: 0.22, g: 0.24, b: 0.30), shorts: false, female: false, x: -60)
-        }
-        let officer = Person("Officer Reyes", height: 170, skin: RGB(r: 0.78, g: 0.58, b: 0.42), hair: RGB(r: 0.12, g: 0.10, b: 0.08), style: .bun,
-                             shirt: RGB(r: 0.14, g: 0.20, b: 0.38), pants: RGB(r: 0.14, g: 0.20, b: 0.38), shorts: false, x: -60)
-        officer.driverCap = true
-        let all = [driver, boss] + repos + [officer]
-        for p in all { p.visible = false }
-        return all
     }
 
     // MARK: Visitors
@@ -239,7 +261,7 @@ final class Director {
     static func auntIntro(_ name: String, kid: String) -> Intro {
         switch name {
         case "Aunt Carol": Intro(
-            spot: "Well, I'll be! A flying zoo over the front yard!", beamUp: "Up, up and awaaay!",
+            spot: "Well, I'll be! A flying zoo over the backyard!", beamUp: "Up, up and awaaay!",
             inPod: "Oh my stars — a whole barnyard of aliens! Hello there, fellas!", whatsNext: "\(kid), sweetheart, I haven't been this excited since the county fair!",
             straps: "Buckled in, just like a roller coaster. I love roller coasters!", tingle: "Hee hee! It's like a hundred little feathers!",
             legs: "My legs are all furry — how cozy!", body: "A tail AND big strong arms? I could do twice the canning!",
@@ -361,7 +383,7 @@ final class Director {
 
     private static func makeCrew() -> [Person] {
         let crew: [(String, AnimalKind, Double)] = [("Grubbo", .gorilla, 172), ("Zeeba", .zebra, 158), ("Hippa", .hippopotamus, 148),
-                                                    ("Rhinox", .rhinoceros, 176), ("Commander Leo", .lion, 180)]
+                                                    ("Rhinox", .rhinoceros, 176), ("Commander Leo", .pinkTiger, 180)]
         return zip(crew, wingsX).map { member, x in
             let p = Person.alienAnimal(member.0, kind: member.1, height: member.2, x: x)
             p.visible = false
@@ -389,17 +411,25 @@ final class Director {
         return CGPoint(x: podFrom.x + (podTo.x - podFrom.x) * e, y: podFrom.y + (podTo.y - podFrom.y) * e + bob)
     }
 
-    func taxi(at now: Date) -> Double? { taxiShown ? taxiSlide.x(at: now) : nil }
-    func bus(at now: Date) -> Double? { busShown ? busSlide.x(at: now) : nil }
-    func police(at now: Date) -> Double? { policeShown ? policeSlide.x(at: now) : nil }
-    func ops(at now: Date) -> Double? { opsShown ? opsSlide.x(at: now) : nil }
-    func truck(at now: Date) -> Double? { truckShown ? truckSlide.x(at: now) : nil }
+    /// The Animals of Poker machine's mini saucer, bobbing while it's out.
+    func miniSaucer(at now: Date) -> CGPoint? {
+        guard miniShown else { return nil }
+        let t = min(max(now.timeIntervalSince(miniT0) / max(miniDur, 0.001), 0), 1)
+        let e = t * t * (3 - 2 * t)
+        let bob = sin(now.timeIntervalSinceReferenceDate * 4) * 2
+        return CGPoint(x: miniFrom.x + (miniTo.x - miniFrom.x) * e, y: miniFrom.y + (miniTo.y - miniFrom.y) * e + bob)
+    }
 
-    /// Debbie's motorcycle: parked in the driveway, or strapped onto the flatbed.
-    func repoBike(at now: Date) -> (x: Double, ground: Double)? {
-        guard bikeShown else { return nil }
-        guard bikeLoaded, let truck = truck(at: now) else { return (Stage.bikeX, Stage.floorY) }
-        return (truck + 60, Stage.floorY - 46)
+    /// What the poker machine's screen says in the spare room.
+    var pokerScreenText: String {
+        if let poker { return poker.ending == .qualified ? "GAME 10!" : "GAME \(poker.game.number)" }
+        return pokerScreen
+    }
+
+    /// 0 (empty cottage) … 1 (the chairs, console and mirror fully beamed in).
+    func cottageMachineLevel(at now: Date) -> Double {
+        guard cottageMachine else { return 0 }
+        return min(max(now.timeIntervalSince(cottageMachineT0) / 2.5, 0), 1)
     }
 
     /// Where one of their own vehicles is: parked in the driveway, or rolling in from the street.
@@ -444,7 +474,8 @@ final class Director {
 
     // MARK: Controls
 
-    func start() {
+    /// `resume`: carry on from the last saved morning instead of starting a new game.
+    func start(resume: Bool = false) {
         task?.cancel()
         venuePick?.resume(returning: .belmar)
         venuePick = nil
@@ -456,32 +487,54 @@ final class Director {
         vacationPick = nil
         vehiclePick?.resume(returning: nil)
         vehiclePick = nil
+        poker?.shutDown()
+        poker = nil
+        pokerDone?.resume()
+        pokerDone = nil
+        leftoverCredits = 0
+        outingPick?.resume(returning: .trip)
+        outingPick = nil
+        choosingOuting = false
+        releasePrompt()
+        answerWait?.resume(returning: .option(0))
+        answerWait = nil
+        answerAuto = nil
+        prompt = nil
+        board = nil
+        tableSeats = []
+        tableGroups = []
+        humanRow = nil
+        you = nil
+        myHand = []
+        cardGames = 0
+        guestWomen = []
+        guestKids = []
+        pickupNewcomer = nil
         sound.prepare()
         sound.stopAll()
         (debbie, hailey, molly) = Self.makeCast()
         team = [debbie, hailey, molly]
         visitors = []
-        extras = Self.makeExtras()
+        extras = []
         crew = Self.makeCrew()
         customers = []
         finished = false
         running = true
-        place = .road
+        place = .house
         buttonShown = false
         buttonPressT0 = .distantPast
-        taxiShown = false
-        busShown = false
-        policeShown = false
-        opsShown = false
-        crashT0 = nil
-        bikeShown = false
-        bikeLoaded = false
-        truckShown = false
+        pokerScreen = "INSERT CREDITS"
+        miniShown = false
+        miniBeamOn = false
+        hiding = nil
+        cottageMachine = false
+        cottageMachineT0 = .distantFuture
         podShown = false
         podFlying = false
         beamOn = false
         strapped = []
         mirrorT0 = .distantFuture
+        mirrorFolks = []
         consolePressT0 = .distantPast
         screen = "READY"
         choosingKind = nil
@@ -514,8 +567,10 @@ final class Director {
         night = false
         sleeping = []
         couchSleeper = nil
+        let save = resume ? SaveGame.load() : nil
+        if let save { restore(save) }
         task = Task {
-            do { try await story() } catch {}
+            do { try await story(resumed: save != nil) } catch {}
         }
     }
 
@@ -550,27 +605,98 @@ final class Director {
         choosingVehicle = false
     }
 
+    func chooseOuting(_ outing: Outing) {
+        outingPick?.resume(returning: outing)
+        outingPick = nil
+        choosingOuting = false
+    }
+
+    /// Your answer to the card table's current question.
+    func answer(_ a: PlayerAnswer) {
+        guard let wait = answerWait else { return }
+        answerWait = nil
+        answerAuto = nil
+        prompt = nil
+        wait.resume(returning: a)
+    }
+
+    /// Hands the question back to the computer (auto-play turned on, or the story restarting).
+    func releasePrompt() {
+        if let auto = answerAuto { answer(auto) }
+    }
+
     // MARK: Story
 
-    private func story() async throws {
-        do {
-            try await accident()
-            try await fired()
-            try await repoAtHome()
-            try await animalsAtTheDoor()
-            try await firstTransformation()
+    /// Puts the saved morning's money, counts and wheels back.
+    private func restore(_ save: SaveGame) {
+        cash = save.cash
+        bank = save.bank
+        nights = save.nights
+        trips = save.trips
+        cardGames = save.cardGames
+        auntVisits = save.auntVisits
+        sitterVisits = save.sitterVisits
+        totalProfit = save.totalProfit
+        totalTransformed = save.totalTransformed
+        rotation = save.rotation
+        team = (0..<3).map { cast[(rotation + $0) % 3] }
+        vehicles = Set(save.vehicles.compactMap(Vehicle.init(rawValue:)))
+        // By the first saved morning the zoo has already installed the machine in the cottage.
+        cottageMachine = true
+        cottageMachineT0 = .distantPast
+    }
 
-            // The first day: two trips, then shopping, the bank, and bed.
-            try await tripToVenue()
-            try await comeHome(first: true)
-            try await askNext("Press the red button: the zoo comes back and everyone picks her type of alien animal.")
-            try await doItAgain()
-            try await tripToVenue()
-            try await comeHome()
-            try await restUntilMorning(shopper: debbie)
-            try await complaintAtCabCompany()
+    /// Saves this morning so the game can be continued from here.
+    private func saveProgress() {
+        let save = SaveGame(cash: cash, bank: bank, nights: nights, trips: trips, cardGames: cardGames, auntVisits: auntVisits,
+                            sitterVisits: sitterVisits, totalProfit: totalProfit, totalTransformed: totalTransformed,
+                            rotation: rotation, vehicles: vehicles.map(\.rawValue))
+        save.write()
+        saved = save
+    }
+
+    /// Continuing a saved game: the family is up and gathered in the living room on the saved morning.
+    private func resumeMorning() async throws {
+        try await sceneChange {
+            self.place = .house
+            self.night = false
+            self.sleeping = []
+            self.show(self.cast)
+            for (p, x) in zip(self.cast, Stage.buttonSpots) {
+                (p.x0, p.x1, p.moveDur) = (x, x, 0)
+                p.seated = false
+                p.place(height: 0)
+            }
+            self.cutNow(Stage.full)
+        }
+        for (i, p) in cast.enumerated() { p.facing = i == 0 ? 1 : -1 }
+        try await look(at: Stage.shot(centerX: 520, height: 250))
+        caption = "Welcome back! Day \(nights + 1) — cash $\(cash), savings $\(bank)."
+        sound.chime()
+        try await say(debbie, "Good morning, girls! Where were we?", 2.2)
+        try await say(molly, "Making alien animals!", 1.8)
+    }
+
+    private func story(resumed: Bool = false) async throws {
+        do {
+            if resumed {
+                try await resumeMorning()
+            } else {
+                try await moveInDay()
+                try await pokerMorning()
+                try await zooGift()
+
+                // The first day: two trips, then shopping, the bank, and bed.
+                try await tripToVenue()
+                try await comeHome(first: true)
+                try await askNext("Next: a flying zoo trip, or a card game hosted right here at the house.")
+                try await outing()
+                try await restUntilMorning(shopper: debbie)
+            }
 
             while true {
+                // Every new morning is saved; "Continue" picks the game up from here.
+                saveProgress()
                 if nights % 2 == 1 {
                     // After the first and every odd night, an aunt comes to take Debbie clothes shopping.
                     let aunt = Self.auntLooks[auntVisits % Self.auntLooks.count].aunt
@@ -583,23 +709,21 @@ final class Director {
                         try await babysitterDay()
                     } else {
                         try await say(debbie, "No vacation for me — let's get to work, girls!", 2.4)
-                        try await doItAgain()
-                        try await tripToVenue()
-                        try await comeHome()
-                        try await askNext("Press the red button for one more trip today?")
-                        try await doItAgain()
-                        try await tripToVenue()
-                        try await comeHome()
+                        try await outing()
+                        try await askNext("One more today? A flying zoo trip or a card game at home.")
+                        try await outing()
                         try await restUntilMorning(shopper: debbie)
                     }
                 }
             }
         } catch is EndGame {}
 
-        caption = "Game over! \(trips) \(trips == 1 ? "trip" : "trips") in the flying zoo, \(totalTransformed) customers transformed, "
+        caption = "Game over! \(trips) \(trips == 1 ? "trip" : "trips") in the flying zoo, "
+            + (cardGames > 0 ? "\(cardGames) card \(cardGames == 1 ? "game" : "games") at home, " : "")
+            + "\(totalTransformed) customers transformed, "
             + "\(totalProfit >= 0 ? "$\(totalProfit) profit" : "$\(-totalProfit) lost"). Cash on hand: $\(cash), savings in the bank: $\(bank)."
             + (vehicles.isEmpty ? "" : " In the driveway: \(ListFormatter.localizedString(byJoining: Vehicle.allCases.filter(vehicles.contains).map { "a \($0.name.lowercased())" })), bought and paid for.")
-        try await say(debbie, vehicles.contains(.motorcycle) ? "A new motorcycle nobody can repossess. Best thing that ever happened to us!"
+        try await say(debbie, vehicles.contains(.motorcycle) ? "A brand-new motorcycle, all paid for. Best thing that ever happened to us!"
                                                             : "Best thing that ever happened to us, girls!", 3)
         finished = true
         running = false
@@ -608,7 +732,7 @@ final class Director {
     /// Between trips: "Do It Again" carries on; "End Game" ends the story.
     private func askNext(_ prompt: String) async throws {
         if cash < Venue.cheapestFee {
-            try await say(debbie, "We only have $\(cash) on hand — not enough for another setup fee.", 2.8)
+            try await say(debbie, "We only have $\(cash) on hand — not enough for a zoo setup fee. But a card game at home costs nothing!", 3.2)
         }
         nextPrompt = prompt
         let again = await withCheckedContinuation { cont in
@@ -632,216 +756,61 @@ final class Director {
         return go
     }
 
-    /// The opening: Debbie's cab and an airport shuttle bus collide on the terminal roadway, and she argues with the bus driver.
-    /// The airport police and airport operations rush to the scene.
-    private func accident() async throws {
-        let (debbie, driver, officer) = (debbie, extras[0], extras[4])
-        place = .road
-        show([])
-        debbie.driverCap = true
-        taxiShown = true
-        busShown = true
-        policeShown = false
-        opsShown = false
-        crashT0 = nil
-        let drive = 5.0
-        taxiSlide = Slide(from: -160, to: Stage.crashX - Stage.taxiLength / 2 - 1, t0: .now, dur: drive)
-        busSlide = Slide(from: 1400, to: Stage.crashX + Stage.busLength / 2 + 1, t0: .now, dur: drive)
-        cutNow(Stage.full)
-        caption = "Debbie drives a taxi for the Sunshine Cab Company."
-        sound.hum(true)
-        try await sleep(2.6)
-        caption = "She's racing into the airport to pick up a fare…"
-        try await sleep(drive - 2.6)
-        sound.hum(false)
-        sound.crash()
-        crashT0 = .now
-        caption = "CRASH! An airport shuttle bus pulls out from the curb, and the two of them collide!"
-        try await sleep(2)
-
-        // Both drivers climb out.
-        (debbie.x0, debbie.x1, debbie.moveDur, debbie.facing) = (Stage.crashX - 70, Stage.crashX - 70, 0, 1)
-        (driver.x0, driver.x1, driver.moveDur, driver.facing) = (Stage.crashX + 80, Stage.crashX + 80, 0, -1)
-        show([debbie, driver])
-        try await look(at: Stage.shot(centerX: Stage.crashX, height: 300))
-        try await say(driver, "Hey! Are you blind? You ran right into my shuttle bus!", 2.8)
-        try await say(debbie, "ME? You swung that bus right out in front of my cab, pal!", 2.8)
-        try await say(driver, "I had my blinker on!", 1.8)
-        try await say(debbie, "Blinker? Get your eyes checked! Learn how to drive!", 2.8)
-        try await say(driver, "Look at my bus! I want your name and your company!", 2.8)
-        try await say(debbie, "Sunshine Cab Company. Go ahead and call them — see if I care!", 3)
-        try await say(driver, "Oh, I'll call them, all right!", 2.2)
-
-        // The airport comes to the scene: the police from one side, operations from the other.
-        caption = "Sirens! The airport police and airport operations rush to the scene."
-        sound.siren(true)
-        try await look(at: Stage.full)
-        policeShown = true
-        opsShown = true
-        policeSlide = Slide(from: -120, to: Stage.policeX, t0: .now, dur: 3)
-        opsSlide = Slide(from: 1320, to: Stage.opsX, t0: .now, dur: 3)
-        try await sleep(3.4)
-        sound.siren(false)
-        (officer.x0, officer.x1, officer.moveDur, officer.facing) = (Stage.policeX + 40, Stage.policeX + 40, 0, 1)
-        officer.visible = true
-        try await walkAll([(officer, Stage.crashX - 150), (debbie, Stage.crashX - 60)], speed: 120)
-        debbie.facing = -1
-        officer.facing = 1
-        try await look(at: Stage.shot(centerX: Stage.crashX - 40, height: 300))
-        try await say(officer, "Airport Police! Is anybody hurt?", 2.2)
-        try await say(driver, "No, officer. Just my bus!", 2)
-        try await say(debbie, "This guy can't drive! He swung that bus right out in front of me!", 2.8)
-        try await say(officer, "Listen, you can't change what's happened.", 2.6)
-        try await say(officer, "Both of you — calm down. You're blocking the whole departures roadway.", 3)
-        try await say(officer, "I need licenses and registrations from both of you.", 2.6)
-        debbie.reachTo = CGPoint(x: Stage.crashX - 110, y: Stage.floorY - 90)
-        try await sleep(0.8)
-        debbie.reachTo = nil
-        try await say(officer, "I'm writing this up. The airport will send a copy of the report to both of your companies.", 3.6)
-        try await say(driver, "Good! And I'm filing my own complaint with that cab company!", 3)
-        caption = "That's Debbie's third accident this year."
-        try await sleep(2.2)
-    }
-
-    /// Back at the cab company, the boss lets Debbie go.
-    private func fired() async throws {
-        let (debbie, boss) = (debbie, extras[1])
-        try await sceneChange {
-            self.place = .office
-            self.taxiShown = false
-            self.busShown = false
-            self.policeShown = false
-            self.opsShown = false
-            self.crashT0 = nil
-            self.show([debbie, boss])
-            (debbie.x0, debbie.x1, debbie.moveDur) = (Stage.officeDoorX, Stage.officeDoorX, 0)
-            (boss.x0, boss.x1, boss.moveDur, boss.facing) = (Stage.bossDeskX + 40, Stage.bossDeskX + 40, 0, -1)
-            self.cutNow(Stage.full)
-        }
-        caption = "When Debbie gets back to the Sunshine Cab Company, her boss is waiting."
-        try await walk(debbie, to: Stage.bossDeskX - 110, speed: 110)
-        debbie.facing = 1
-        try await look(at: Stage.shot(centerX: Stage.bossDeskX - 40, height: 300))
-        try await say(boss, "Debbie, we need to talk.", 2)
-        try await say(boss, "The airport police just called about your accident with their shuttle bus.", 3.2)
-        try await say(boss, "We have had numerous complaints about you being combative with other drivers.", 3.4)
-        try await say(boss, "Now you have had 3 accidents in a year.", 2.6)
-        try await say(boss, "For the safety of you and others, I have to let you go.", 3)
-        debbie.mood = .shocked
-        try await say(debbie, "You're firing me? I'm your best driver!", 2.4)
-        try await say(boss, "I'm sorry, Debbie. Please leave your cab keys and your cap on the desk.", 3)
-        debbie.reachTo = CGPoint(x: Stage.bossDeskX - 30, y: Stage.floorY - 74)
-        try await sleep(0.8)
-        debbie.driverCap = false
-        debbie.reachTo = nil
-        try await say(debbie, "My girls are counting on me… what am I going to do now?", 3)
-        debbie.mood = .happy
-        caption = "Debbie packs up her things and leaves the office for the last time."
-        try await look(at: Stage.full)
-        debbie.load = .box
-        try await walk(debbie, to: -60, speed: 120)
-    }
-
-    /// After the first night: the shuttle bus driver turns up at the cab company to file his complaint — too late.
-    private func complaintAtCabCompany() async throws {
-        let (driver, boss) = (extras[0], extras[1])
-        let home = cast.map { ($0, $0.visible) }
-        try await sceneChange {
-            self.place = .office
-            self.show([driver, boss])
-            (driver.x0, driver.x1, driver.moveDur) = (Stage.officeDoorX, Stage.officeDoorX, 0)
-            (boss.x0, boss.x1, boss.moveDur, boss.facing) = (Stage.bossDeskX + 40, Stage.bossDeskX + 40, 0, -1)
-            boss.mood = .happy
-            self.cutNow(Stage.full)
-        }
-        caption = "Meanwhile, across town, the shuttle bus driver marches into the Sunshine Cab Company."
-        try await walk(driver, to: Stage.bossDeskX - 110, speed: 120)
-        driver.facing = 1
-        try await look(at: Stage.shot(centerX: Stage.bossDeskX - 40, height: 300))
-        try await say(driver, "Good morning. I'm Gary — I drive the airport shuttle bus.", 2.6)
-        try await say(driver, "I'm here to file a complaint against one of your drivers. Debbie!", 2.8)
-        try await say(driver, "She smashed her cab into my shuttle bus at the airport, then screamed at me in front of everybody!", 3.8)
-        try await say(boss, "Debbie doesn't work here anymore. I fired her.", 2.8)
-        driver.mood = .shocked
-        try await say(driver, "Oh! You did? Well… I guess there's nothing left to complain about.", 3)
-        driver.mood = .happy
-        try await say(boss, "Thanks for coming in, Gary. Drive safe out there.", 2.4)
-        try await walk(driver, to: -60, speed: 130)
-        try await sceneChange {
-            self.place = .house
-            self.show([])
-            for (p, shown) in home { p.visible = shown }
-            self.cutNow(Stage.full)
-        }
-    }
-
-    /// Home again — and the repo men are loading her motorcycle onto a flatbed.
-    private func repoAtHome() async throws {
+    /// The opening: Debbie and her girls move into their new house. The spare room came with an old video poker machine.
+    private func moveInDay() async throws {
         let (debbie, hailey, molly) = (debbie, hailey, molly)
-        let (vince, sal) = (extras[2], extras[3])
+        place = .house
+        show([debbie, hailey, molly])
+        for (i, p) in [debbie, hailey, molly].enumerated() {
+            (p.x0, p.x1, p.moveDur, p.facing) = (-60 - Double(i) * 45, -60 - Double(i) * 45, 0, 1)
+        }
+        debbie.load = .box
+        cutNow(Stage.full)
+        caption = "Moving day! Debbie and her daughters walk up to their new house."
+        try await walkAll([(debbie, 300), (hailey, 255), (molly, 215)], speed: 110)
+        for p in cast { p.facing = 1 }
+        try await look(at: Stage.shot(centerX: 290, height: 260))
+        try await say(molly, "Is this our new house, Mommy?", 2)
+        try await say(debbie, "This is it, girls! Our brand-new home.", 2.4)
+        try await say(hailey, "It's so big! Do we each get our own room?", 2.4)
+        try await say(debbie, "You sure do. Let's go have a look!", 2.2)
+
+        caption = "They take the grand tour: the living room…"
+        try await look(at: Stage.full)
+        debbie.load = nil
+        try await walkAll([(debbie, Stage.livingX[0]), (hailey, Stage.livingX[1]), (molly, Stage.livingX[2])], speed: 130)
+        caption = "…a bedroom for Debbie, one for Hailey, and one for Molly."
+        try await walkAll(zip(cast, Stage.roomX).map { ($0, $1) }, speed: 150)
+        for p in cast { p.facing = 0 }
+        try await say(molly, "I get the room with the teddy bear!", 2.2)
+        try await say(hailey, "Mom! There's one more room down the hall — the spare room!", 2.6)
+
+        // The spare room: an old video poker machine left behind by somebody.
+        try await sceneChange {
+            self.place = .spareRoom
+            self.show(self.cast)
+            for (i, p) in self.cast.enumerated() {
+                let x = Stage.spareDoorX - Double(i) * 30
+                (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 1)
+            }
+            self.cutNow(Stage.full)
+        }
+        caption = "In the spare room, somebody left a video poker machine plugged in by the wall."
+        try await walkAll([(debbie, Stage.spareWatchX[2]), (hailey, Stage.spareWatchX[1]), (molly, Stage.spareWatchX[0])], speed: 130)
+        for p in cast { p.facing = 1 }
+        try await look(at: Stage.shot(centerX: 740, height: 300))
+        try await say(hailey, "\"ANIMALS OF POKER\"? Who leaves a game machine in a house?", 2.8)
+        try await say(molly, "It has a tiger and an elephant on top! Can I play it?", 2.6)
+        try await say(debbie, "Not today, sweetie. That thing is probably broken.", 2.4)
+        try await say(debbie, "We've got boxes to unpack. Bedtime soon!", 2.2)
+
         try await sceneChange {
             self.place = .house
-            self.show([hailey, molly, vince, sal, debbie])
-            self.bikeShown = true
-            self.bikeLoaded = false
-            self.truckShown = true
-            self.truckSlide = .parked(at: Stage.truckX)
-            for (p, x) in [(hailey, Stage.livingX[1]), (molly, Stage.livingX[2])] { (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, -1) }
-            (vince.x0, vince.x1, vince.moveDur, vince.facing) = (310, 310, 0, -1)
-            (sal.x0, sal.x1, sal.moveDur, sal.facing) = (345, 345, 0, -1)
-            (debbie.x0, debbie.x1, debbie.moveDur) = (-40, -40, 0)
-            self.cutNow(Stage.yardView)
+            self.show(self.cast)
+            for (p, x) in zip(self.cast, Stage.livingX) { (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 0) }
+            self.cutNow(Stage.full)
         }
-        caption = "Debbie walks home with her box…"
-        try await walk(debbie, to: 80, speed: 60)
-        caption = "…and finds two repo men standing by her motorcycle!"
-        debbie.mood = .shocked
-        try await walk(debbie, to: 190, speed: 130)
-        debbie.facing = 1
-        try await look(at: Stage.shot(centerX: 260, height: 280))
-        try await say(vince, "Are you Debbie?", 1.8)
-        try await say(debbie, "This is her.", 1.6)
-        try await say(vince, "Listen, we are here for the motorcycle. We have a repo order for it.", 3.2)
-        try await say(debbie, "Hey, hey, hey!", 1.8)
-        try await say(sal, "You haven't been making your payments.", 2.4)
-
-        caption = "The repo men roll her motorcycle up onto the flatbed."
-        try await walk(sal, to: Stage.bikeX + 40, speed: 120)
-        sound.clunk()
-        bikeLoaded = true
-        try await sleep(0.8)
-        vince.facing = -1
-        try await say(vince, "Have a nice day.", 1.8)
-        try await walkAll([(vince, 60), (sal, 60)], speed: 160)
-        vince.visible = false
-        sal.visible = false
-        sound.hum(true)
-        truckSlide = Slide(from: Stage.truckX, to: -520, t0: .now + 0.4, dur: 3.6, accelerate: true)
-        caption = "Debbie goes chasing after it!"
-        debbie.load = nil
-        shout([debbie], "Come back with my bike!", 2.4)
-        try await sleep(0.5)
-        try await walk(debbie, to: -60, speed: 200)
-        try await sleep(2)
-        sound.hum(false)
-        truckShown = false
-        bikeShown = false
-        (debbie.x0, debbie.x1, debbie.moveDur) = (-60, -60, 0)
-        try await walk(debbie, to: 200, speed: 70)
-        debbie.facing = 1
-        try await say(debbie, "Gone… just like that.", 2.2)
-        debbie.mood = .happy
-
-        caption = "Debbie trudges inside to her daughters."
-        try await look(at: Stage.shot(centerX: 520, height: 280))
-        try await walk(debbie, to: Stage.livingX[0], speed: 110)
-        debbie.facing = 1
-        try await say(hailey, "Mom! Who were those men? Where's your motorcycle?", 2.8)
-        try await say(debbie, "They took it, honey. And today I lost my cab job, too.", 3)
-        try await say(molly, "Mommy, are you sad?", 1.8)
-        try await say(debbie, "A little, sweetie. But we'll figure something out.", 2.6)
-        try await say(hailey, "Let's all get some rest and think it over in the morning.", 2.8)
-        caption = "Debbie and her daughters decide to get some rest and think it over in the morning."
+        caption = "After a long day of unpacking, everybody heads to bed in the new house."
         try await goToBed(cast)
         try await sceneChange {
             self.debbie.shirt = Self.casualShirt
@@ -853,10 +822,323 @@ final class Director {
         try await sleep(2)
     }
 
-    /// Alien animals land a flying zoo in the front yard, knock at the door, and the zoo pulls the family inside.
-    private func animalsAtTheDoor() async throws {
+    /// Mom goes shopping. Molly, the youngest, sneaks into the spare room and plays the Animals of Poker;
+    /// at game 10 a mini saucer pops out and turns her into an elephant. Then Hailey plays, and then Debbie.
+    private func pokerMorning() async throws {
+        let (debbie, hailey, molly) = (debbie, hailey, molly)
+        try await walkAll(zip(cast, Stage.livingX).map { ($0, $1) }, speed: 140)
+        debbie.facing = 1
+        hailey.facing = -1
+        molly.facing = -1
+        try await look(at: Stage.shot(centerX: 530, height: 250))
+        try await say(debbie, "Girls, I'm heading into town to shop for the new house. Curtains, towels, a welcome mat…", 3.4)
+        try await say(debbie, "Hailey, keep an eye on your sister. Stay out of trouble!", 2.6)
+        try await say(hailey, "We will, Mom!", 1.6)
+        shout([hailey, molly], "Bye, Mom!", 1.6)
+        try await sleep(1.6)
+        caption = "Debbie heads out the front door."
+        try await look(at: Stage.full)
+        try await walk(debbie, to: -60, speed: 160)
+        debbie.visible = false
+
+        molly.facing = -1
+        hailey.facing = 1
+        try await look(at: Stage.shot(centerX: 560, height: 230))
+        try await say(molly, "Hailey… can we play the game machine in the spare room? Pleeease?", 2.8)
+        try await say(hailey, "Mom said stay out of trouble…", 2)
+        try await say(hailey, "…but okay. You play, I'll watch.", 2.2)
+
+        // Molly at the machine.
+        try await toSpareRoom(player: molly, watchers: [hailey])
+        try await say(molly, "It's lighting up! It says I have 200 credits!", 2.4)
+        try await say(hailey, "Press BET MAX every time, Molly. It says you need the max bet to get to game 10.", 3.2)
+        try await playPoker(molly)
+        try await gameTen(molly, kind: .elephant,
+                          lines: (spot: "A little flying saucer!", tingle: "It tickles!", legs: "My feet are getting big and gray!",
+                                  body: "I'm getting a big round tummy!", face: "My nose is growing… it's a TRUNK!"))
+        hailey.mood = .shocked
+        try await say(hailey, "MOLLY! You're an ELEPHANT!", 2.2)
+        try await say(hailey, "Look in the mirror!", 1.6)
+        try await standingMirror([molly], caption: "Molly sees a little alien elephant in the spare room mirror!")
+        molly.mood = .beaming
+        try await say(molly, "I have a trunk! Toot-toot!", 2)
+        try await say(molly, "Your turn, Hailey! It tickles!", 2)
+        try await say(hailey, "You look SO cute, Molly! I want a trunk too!", 2.4)
+
+        // The machine isn't done: the mini saucer pops back out and comes straight for Hailey, right where she stands.
+        let haileyX = hailey.x1
+        try await look(at: Stage.shot(centerX: 740, height: 300))
+        caption = "Clunk! The top of the machine slides open again…"
+        sound.clunk()
+        miniShown = true
+        moveMini(to: Stage.miniHome, over: 0)
+        moveMini(to: CGPoint(x: Stage.pokerX, y: Stage.miniHome.y - 50), over: 1)
+        sound.hum(true)
+        try await sleep(1.1)
+        hailey.mood = .shocked
+        try await say(molly, "Hailey, it's coming for YOU!", 2)
+        moveMini(to: CGPoint(x: haileyX, y: Stage.floorY - hailey.height - 70), over: 1.4)
+        try await sleep(1.5)
+        hailey.mood = .beaming
+        try await say(hailey, "It picked me! Yay!", 2.2)
+        try await say(hailey, "Okay, I'm ready! Make me an elephant too!", 2.2)
+        try await say(hailey, "I am going to be transformed — yay!", 2.2)
+        try await miniBeam(hailey, kind: .elephant, x: haileyX,
+                           lines: (spot: "Here it comes!", tingle: "Ooh, Molly was right — it tickles!", legs: "My feet are getting big and gray!",
+                                   body: "Big floppy ears and a round tummy!", face: "My nose… it's growing into a TRUNK!"))
+        caption = "The mini saucer zips back into the machine."
+        moveMini(to: CGPoint(x: Stage.pokerX, y: Stage.miniHome.y - 50), over: 1.2)
+        try await sleep(1.3)
+        moveMini(to: Stage.miniHome, over: 0.6)
+        try await sleep(0.7)
+        miniShown = false
+        sound.hum(false)
+        sound.clunk()
+        hailey.facing = 1
+        try await standingMirror([hailey, molly], caption: "Two little alien elephants look back from the spare room mirror!")
+        try await snap([hailey])
+        hailey.mood = .beaming
+        try await say(hailey, "I'm an elephant, just like Molly! I LOVE it!", 2.6)
+
+        // Debbie comes home to two alien animals in the living room.
+        try await sceneChange {
+            self.place = .house
+            self.show([hailey, molly])
+            (hailey.x0, hailey.x1, hailey.moveDur, hailey.facing) = (Stage.livingX[1], Stage.livingX[1], 0, -1)
+            (molly.x0, molly.x1, molly.moveDur, molly.facing) = (Stage.livingX[2], Stage.livingX[2], 0, -1)
+            hailey.mood = .happy
+            molly.mood = .happy
+            self.cutNow(Stage.full)
+        }
+        caption = "That afternoon, Debbie comes home from shopping…"
+        (debbie.x0, debbie.x1, debbie.moveDur) = (-60, -60, 0)
+        debbie.load = .shopping
+        debbie.visible = true
+        try await walk(debbie, to: Stage.livingX[0], speed: 150)
+        debbie.facing = 1
+        try await look(at: Stage.shot(centerX: 530, height: 250))
+        shout([hailey, molly], "SURPRISE!", 1.8)
+        sound.roar()
+        try await sleep(1.6)
+        debbie.mood = .shocked
+        debbie.load = nil
+        try await say(debbie, "AAAH! Girls?! What happened to you?!", 2.4)
+        try await say(molly, "I got to game 10 on the machine, and a little flying saucer came out and — ZAP!", 3.2)
+        try await say(hailey, "Then it came right out again and zapped me too! Now we're BOTH elephants!", 3)
+
+        // The mini saucer comes up the hall for Debbie.
+        miniShown = true
+        moveMini(to: CGPoint(x: Stage.W + 60, y: Stage.ceilY + 45), over: 0)
+        sound.hum(true)
+        let momX = Stage.livingX[0]
+        caption = "Hmmmm… the mini saucer comes humming down the hall, straight for Debbie!"
+        try await look(at: Stage.full)
+        moveMini(to: CGPoint(x: momX + 60, y: Stage.ceilY + 50), over: 2.4)
+        try await sleep(2.5)
+        try await look(at: Stage.shot(centerX: 520, height: 260))
+        try await say(molly, "It's coming for you mom.", 1.8)
+        moveMini(to: CGPoint(x: momX, y: Stage.floorY - debbie.height - 70), over: 1)
+        try await sleep(1.1)
+        try await miniBeam(debbie, kind: .pinkTiger, x: momX, watcher: (molly, "There goes Mommy."),
+                           lines: (spot: "Me?! Oh my goodness!", tingle: "Oh my, that tickles!", legs: "Pink fur, from my toes on up!",
+                                   body: "A striped tiger tail! Girls, look!", face: "And whiskers, and stripes on my face!"))
+        caption = "Its job done, the mini saucer zips back to the spare room."
+        moveMini(to: CGPoint(x: Stage.W + 60, y: Stage.ceilY + 45), over: 2)
+        try await sleep(2.1)
+        miniShown = false
+        sound.hum(false)
+        try await snap([debbie])
+        try await say(molly, "Mommy, look in the hall mirror!", 1.8)
+        try await standingMirror(cast, caption: "The hall mirror shows a pink tiger and two little elephants!")
+        for p in cast { p.mood = .beaming }
+        shout(cast, "Wow!", 1.8)
+        try await sleep(2)
+        try await say(debbie, "I'm a PINK TIGER! Who knew we could look this amazing?", 2.8)
+        try await say(molly, "Two elephants and a pink tiger!", 2.2)
+        for p in cast { p.mood = .happy }
+    }
+
+    /// Everyone heads down the hall to the spare room: `player` at the machine, `watchers` behind her.
+    private func toSpareRoom(player: Person, watchers: [Person]) async throws {
+        let people = [player] + watchers
+        try await sceneChange {
+            self.place = .spareRoom
+            self.show(people)
+            for (i, p) in people.enumerated() {
+                let x = Stage.spareDoorX - Double(i) * 35
+                (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 1)
+            }
+            self.cutNow(Stage.full)
+        }
+        caption = "\(player.id) sits down at the Animals of Poker machine."
+        try await walkAll([(player, Stage.pokerPlayerX)] + zip(watchers, Stage.spareWatchX.reversed()).map { ($0, $1) }, speed: 140)
+        for p in people { p.facing = 1 }
+        try await look(at: Stage.shot(centerX: 740, height: 300))
+    }
+
+    /// The last player steps back to watch, and `next` steps up to the machine.
+    private func swapPlayer(to next: Person, from last: Person) async throws {
+        try await look(at: Stage.full)
+        caption = "\(next.id) steps up to the machine."
+        try await walkAll([(last, Stage.spareWatchX[1]), (next, Stage.pokerPlayerX)], speed: 120)
+        last.facing = 1
+        next.facing = 1
+        try await look(at: Stage.shot(centerX: 740, height: 300))
+    }
+
+    /// The player plays `p`'s nine games on the Animals of Poker. Running out of credits or not betting the max
+    /// means inserting credits and starting over; reaching game 10 hands the story back.
+    private func playPoker(_ p: Person) async throws {
+        let session = PokerSession(player: p.id, host: .animals, muted: muted)
+        session.onSound = { [weak self] s in
+            switch s {
+            case .card: self?.sound.beep()
+            case .coin: self?.sound.pay()
+            case .chime: self?.sound.chime()
+            }
+        }
+        session.onEnd = { [weak self] ending in
+            guard ending == .qualified else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(4.5))
+                self?.finishPoker(session)
+            }
+        }
+        caption = "\(p.id) is playing the Animals of Poker. Bet the max every hand and reach game 10!"
+        poker = session
+        session.begin()
+        await withCheckedContinuation { cont in pokerDone = cont }
+        try Task.checkCancellation()
+        leftoverCredits = session.credits
+    }
+
+    /// Whatever credits are left on the machine after game 10 come out as cash for the family, a dollar a credit.
+    private func cashOutMachine(_ p: Person) async throws {
+        let credits = leftoverCredits
+        leftoverCredits = 0
+        guard credits > 0 else { return }
+        pokerScreen = "CASH OUT"
+        caption = "\(p.id) presses CASH OUT: the \(credits) credits left on the machine come out as $\(credits) — and it all goes to the family!"
+        sound.pay()
+        cash += credits
+        cashPop = ("+$\(credits) from the machine", .now, Stage.pokerX)
+        let family = cast.contains { $0 === p }
+        try await say(p, family ? (p.isKid ? "$\(credits) left on the machine! That's for the family, Mom!" : "$\(credits) left on the machine — that goes in the family pot!")
+                                : "Here, Debbie — the $\(credits) left on the machine is for your family!", 2.8)
+        try await sleep(0.8)
+        pokerScreen = "INSERT CREDITS"
+    }
+
+    private func finishPoker(_ session: PokerSession) {
+        guard poker === session else { return }
+        session.shutDown()
+        poker = nil
+        pokerDone?.resume()
+        pokerDone = nil
+    }
+
+    /// Game 10: the topper opens, the mini saucer flies out over the player and beams her into an alien animal,
+    /// feet first, then tucks itself back inside the machine.
+    private func gameTen(_ p: Person, kind: AnimalKind,
+                         lines: (spot: String, tingle: String, legs: String, body: String, face: String)) async throws {
+        pokerScreen = "GAME 10!"
+        try await look(at: Stage.shot(centerX: 780, height: 340))
+        caption = "GAME 10! The top of the machine slides open…"
+        sound.chime()
+        sound.clunk()
+        miniShown = true
+        moveMini(to: Stage.miniHome, over: 0)
+        moveMini(to: CGPoint(x: Stage.pokerX, y: Stage.miniHome.y - 50), over: 1)
+        sound.hum(true)
+        try await sleep(1.1)
+        let over = CGPoint(x: Stage.pokerPlayerX, y: Stage.floorY - p.height - 70)
+        moveMini(to: over, over: 1.4)
+        try await miniBeam(p, kind: kind, x: Stage.pokerPlayerX, lines: lines)
+
+        caption = "The mini saucer zips back into the machine."
+        moveMini(to: CGPoint(x: Stage.pokerX, y: Stage.miniHome.y - 50), over: 1.2)
+        try await sleep(1.3)
+        moveMini(to: Stage.miniHome, over: 0.6)
+        try await sleep(0.7)
+        miniShown = false
+        sound.hum(false)
+        sound.clunk()
+        pokerScreen = "WINNER!"
+        try await look(at: Stage.shot(centerX: 700, height: 300))
+        try await snap([p])
+        try await cashOutMachine(p)
+        pokerScreen = "INSERT CREDITS"
+    }
+
+    /// The mini saucer, hovering over `p` (standing at `x`), shines its beam down and turns her into an alien animal,
+    /// feet first. Works in the spare room or anywhere in the house.
+    private func miniBeam(_ p: Person, kind: AnimalKind, x: Double, watcher: (Person, String)? = nil,
+                          lines: (spot: String, tingle: String, legs: String, body: String, face: String)) async throws {
+        let change = Machine.customerChange
+        p.mood = .shocked
+        try await say(p, lines.spot, 1.8)
+        p.facing = 0
+        miniBeamTint = kind.color
+        miniBeamT0 = .now
+        miniBeamOn = true
+        sound.beam(true)
+        caption = "…and the mini saucer shines its beam down on \(p.id)!"
+        try await sleep(1.2)
+
+        let t0 = Date.now + 0.2
+        p.animal = kind
+        p.tingleT0 = t0
+        p.changeT0 = t0 + Machine.tingle
+        p.changeDur = change
+        p.fade(to: 1, over: 0)
+        p.shineT0 = .distantPast
+        sound.tingle()
+        caption = "\(p.id) feels a tingling sensation…"
+        if let (w, line) = watcher {
+            // Someone watching calls out as the change begins.
+            mention(w, line, 1.8)
+            try await sleep(1.9)
+        }
+        cut(to: Stage.focus(CGPoint(x: x, y: Stage.floorY - p.height * 0.55), height: 260))
+        try await sleep(0.6)
+        p.mood = .happy
+        mention(p, lines.tingle, 2.4)
+        try await sleep(Machine.tingle - 0.4)
+
+        sound.zap(true)
+        caption = "…then the saucer turns \(p.id) into an alien \(kind.name), starting from the feet!"
+        cut(to: Stage.focus(CGPoint(x: x, y: Stage.floorY - 40), height: 200))
+        mention(p, lines.legs, 2.6)
+        try await sleep(change * 0.3)
+        caption = "It works its way up — fur, hide and a tail…"
+        cut(to: Stage.focus(CGPoint(x: x, y: Stage.floorY - p.height * 0.5), height: 220))
+        mention(p, lines.body, 2.6)
+        try await sleep(change * 0.3)
+        let head = Pose(p, feet: CGPoint(x: x, y: Stage.floorY), facing: 0, now: .now).head.y
+        caption = "…until it reaches \(p.id)'s face!"
+        cut(to: Stage.focus(CGPoint(x: x, y: head), height: 170))
+        p.mood = .beaming
+        mention(p, lines.face, 3)
+        try await sleep(change * 0.4 + 0.4)
+        sound.zap(false)
+        sound.roar()
+        p.shineT0 = .now
+        miniBeamOn = false
+        sound.beam(false)
+        p.mood = .happy
+    }
+
+    /// The flying zoo arrives: its alien animals left the machine in the spare room, and now they give the family
+    /// a transformation machine of their own in the backyard cottage — and explain the deal.
+    private func zooGift() async throws {
         let (debbie, hailey, molly) = (debbie, hailey, molly)
         let visitors = [leader, crew[0], crew[1]]
+        try await sceneChange {
+            self.place = .house
+            self.show(self.cast)
+            for (p, x) in zip(self.cast, Stage.livingX) { (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 0) }
+            self.cutNow(Stage.full)
+        }
         caption = "Jungle drums are beating somewhere up in the sky…"
         try await look(at: Stage.yardView)
         podShown = true
@@ -866,123 +1148,74 @@ final class Director {
         sound.drums(true)
         try await sleep(3.6)
         sound.drums(false)
-        caption = "Some alien animal creatures show up at the front door!"
+        caption = "A flying zoo lands in the front yard, and alien animals come to the door!"
         try await beamDown(visitors, at: Stage.yardLine)
         try await walkAll([(leader, 392), (crew[0], 352), (crew[1], 312)], speed: 110)
         sound.roar()
-        try await say(leader, "ROAR! Knock-knock! Debbie? Anybody home?", 2.4)
-
+        try await say(leader, "ROAR! Knock-knock! Anybody home?", 2.2)
         try await look(at: Stage.full)
-        try await say(debbie, "Who's knocking at this hour?", 2)
         try await walkAll([(debbie, 452), (hailey, 494), (molly, 530)], speed: 150)
-        for p in cast {
-            p.facing = -1
-            p.mood = .shocked
-        }
+        for p in cast { p.facing = -1 }
         try await look(at: Stage.shot(centerX: 400, height: 300))
-        try await say(hailey, "Mom… there's a gorilla, a zebra AND a lion at our door!", 2.6)
-        try await say(molly, "And a hippo! Like at the zoo!", 2)
-        try await say(leader, "Debbie, we see you also have 2 daughters.", 2.6)
-        try await say(leader, "We heard that you lost your taxi job, and your motorcycle got repossessed.", 3.4)
-        try await say(leader, "Well, today is your lucky day.", 2.4)
-        try await say(debbie, "My lucky day? What are you talking about?", 2.4)
-        try await say(hailey, "Mom, look! There's a flying zoo outside!", 2.4)
+        try await say(molly, "Mommy! More animals! A gorilla, a zebra and a pink tiger!", 2.6)
+        try await say(leader, "Well, well! We see you found our Animals of Poker machine.", 2.8)
+        try await say(leader, "We left it in the spare room for whoever moved in next. And all three of you made it to game 10!", 3.6)
+        try await say(debbie, "That was YOUR machine? Who are you?", 2.2)
+        try await say(leader, "We are the alien animals of the flying zoo. Welcome to the neighborhood!", 3)
+        try await say(leader, "And we have a housewarming gift: a transformation machine of your very own. Come out to your backyard cottage!", 4)
 
-        caption = "The zoo pulls Debbie and her girls inside!"
-        try await look(at: Stage.yardView)
-        try await walkAll([(leader, 330), (crew[0], 365), (crew[1], 400)], speed: 160)
+        // The backyard cottage: the zoo beams the machine in.
+        try await sceneChange {
+            self.place = .cottage
+            self.cottageMachine = false
+            self.cottageMachineT0 = .distantFuture
+            self.movePod(to: CGPoint(x: Stage.backPodX, y: Stage.floorY - Stage.hoverLift), over: 0)
+            self.show(self.cast + visitors)
+            for (p, x) in zip(self.cast, [560.0, 620.0, 670.0]) { (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, -1) }
+            for (p, x) in zip(visitors, Stage.backLine.reversed()) { (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 1) }
+            self.cutNow(Stage.full)
+        }
+        caption = "The flying zoo floats over the backyard, and its beam fills the empty cottage…"
         beamOn = true
         beamT0 = .now
         sound.beam(true)
-        shout(cast, "WHOOOA!", 2)
-        try await walkAll(zip(cast, Stage.yardLine).map { ($0, $1) }, speed: 210)
-        try await beamUp(cast)
-        try await walkAll(zip(visitors, Stage.yardLine).map { ($0, $1) }, speed: 150)
-        try await beamUp(visitors)
-        caption = "The flying zoo lifts off…"
-        movePod(to: CGPoint(x: Stage.yardPodX + 500, y: -220), over: 2.2)
-        try await sleep(1.9)
-    }
-
-    /// Strapped into the chairs, frightened — until the tickle starts, and they love every minute of it.
-    private func firstTransformation() async throws {
-        let (debbie, hailey, molly) = (debbie, hailey, molly)
-        try await sceneChange {
-            self.place = .pod
-            self.podShown = false
-            self.podFlying = true
-            self.seat(self.cast, chairs: [0, 1, 2])
-            for (p, x) in zip(self.crew, Self.wingsX) {
-                (p.x0, p.x1, p.moveDur) = (x, x, 0)
-                p.place(height: 0)
-            }
-            self.show(self.cast)
-            self.cutNow(Stage.chairsView)
-        }
-        caption = "…and takes them aboard."
-        try await sleep(2.2)
-        podFlying = false
-        sound.hum(false)
-        try await strap(cast)
-        caption = "They are strapped into chairs…"
-        try await say(molly, "Mommy, I'm scared!", 2)
-        try await say(hailey, "What are they going to do to us?", 2.2)
-
-        caption = "…and are surrounded by the alien animals!"
-        try await look(at: Stage.full)
-        for p in crew { p.visible = true }
-        sound.roar()
-        try await walkAll(zip(crew, Stage.crewX).map { ($0, $1) }, speed: 120)
-        for p in crew { p.facing = 0 }
+        try await sleep(1.2)
+        sound.shimmer()
+        cottageMachineT0 = .now
+        cottageMachine = true
+        try await sleep(3)
+        beamOn = false
+        sound.beam(false)
+        sound.clunk()
+        caption = "…and three transformation chairs, a console with a glowing red button and a big mirror appear inside!"
+        try await walkAll([(debbie, 760), (hailey, 820), (molly, 870)], speed: 120)
+        for p in cast { p.facing = -1; p.mood = .beaming }
         try await look(at: Stage.chairsView)
-        try await say(debbie, "Please don't hurt my girls!", 2.2)
-        try await say(leader, "Do not be afraid. Trust us — you are going to love it.", 3)
-        try await look(at: Stage.full)
-        try await walk(leader, to: Stage.consoleX - 45, speed: 100)
-        leader.facing = -1
-
-        caption = "One of the alien animals presses a glowing red button…"
-        try await say(leader, "Just relax.", 1.8)
-        try await runMachine([(debbie, .lion), (hailey, .zebra), (molly, .elephant)], presser: leader, change: Machine.change,
-                             calmAtTingle: cast, tingleLine: (molly, "This really tickles!"),
-                             legsStartLine: (hailey, "Hey… this actually feels kind of nice!"),
-                             bodyLine: (debbie, "Girls, look — we're getting soft new fur!"),
-                             faceShouts: (debbie, [("Ooh, now our faces are transforming…", 15), ("My eyes are getting so big…", 15),
-                                                   ("I can smell everything!", 16), ("We have animal ears!", 17), ("Wheeeeeeeeee!", 18)]),
-                             beamOnShout: 4, faceSpeakers: [[debbie], [hailey], [molly], [debbie], [debbie, hailey, molly]])
-        try await look(at: Stage.chairsView)
-        caption = "The transformation takes five minutes. Now they're alien animals from their feet to their faces!"
-        try await sleep(1.8)
-
-        try await look(at: Stage.full)
-        try await say(leader, "The transformation is complete. Have a look!", 2.8)
-        caption = "The alien animals lower a big mirror in front of the chairs…"
-        try await showMirror(cast, caption: "…and Debbie and her girls see themselves for the first time!", calm: cast)
-        for p in cast { p.mood = .beaming }
-        try await look(at: Stage.chairsView)
-        shout(cast, "Wow!", 1.8)
-        try await sleep(2)
-        try await say(molly, "I'm an elephant! With a trunk!", 2.2)
-        try await say(hailey, "Zebra stripes! I love them!", 2.2)
-        try await say(debbie, "And I'm a lion with a big mane! Who knew we could look this amazing?", 2.8)
+        try await say(hailey, "Our own transformation machine!", 2)
+        try await say(molly, "In our backyard!", 1.6)
         for p in cast { p.mood = .happy }
-
         try await look(at: Stage.full)
-        try await say(leader, "We said we are here to help you.", 2.6)
-        try await say(leader, "Here is the deal: our flying zoo has pre-selected destinations.", 3.2)
+        try await walk(leader, to: Stage.chairX[0] - 70, speed: 120)
+        leader.facing = 1
+        try await say(leader, "Sit in the chairs, pick your animal, and press the glowing red button. You change from your feet to your face.", 4)
+        try await say(leader, "Once you are changed, the button calls us, and the flying zoo picks you up right here in the backyard.", 3.6)
+        try await say(leader, "Here is the deal: our flying zoo has pre-selected destinations.", 3)
         caption = "The alien animals explain the deal…"
         card = .deal
         cardUntil = .now + 16
         try await sleep(16.2)
-        try await say(leader, "The only catch is you have to pay for the setup.", 2.8)
+        try await say(leader, "The only catch is you have to pay for the setup.", 2.6)
         try await say(leader, "Two of you go outside to ask customers if they want to be an alien animal. One of you stays inside to work the machine.", 4.2)
         try await say(leader, "Their transformation will dissolve in 8 hours. Yours dissolves after we bring you home — it takes 5 minutes.", 4)
-        try await say(debbie, "I have $\(Venue.startCash) left from my last paycheck. Girls, we're in business!", 3)
-        try await say(hailey, "Way better than driving a cab, Mom!", 2.2)
+        try await say(debbie, "I have $\(Venue.startCash) left over after the move. Girls, we're in business!", 3)
+        try await say(hailey, "Way better than a video poker game, Mom!", 2.2)
         try await say(molly, "Yay! Animal business!", 1.8)
-        try await snap(cast)
-        unstrap(cast)
         team = [debbie, hailey, molly]
+        try await say(leader, "You are already changed — so let's go!", 2.2)
+        caption = "The alien animals beam back up to the zoo."
+        try await walkAll(zip(visitors, Stage.backLine).map { ($0, $1) }, speed: 150)
+        try await beamUp(visitors)
+        try await zooPickup(cast)
         try await say(leader, "Debbie asks the customers, Hailey takes the money, and Molly works the machine.", 3.4)
         try await say(molly, "I get to press the big red button!", 2.2)
     }
@@ -996,6 +1229,14 @@ final class Director {
                             bodyLine: (Person, String)? = nil, facesLine: String? = nil,
                             faceShouts: (Person, [(text: String, size: Double)])? = nil, beamOnShout: Int? = nil,
                             faceSpeakers: [[Person]]? = nil) async throws {
+        // A presser in one of the chairs hops up, presses the button, and hurries back.
+        let chair = presser.seated ? presser.x(at: .now) : nil
+        let wasStrapped = strapped.contains(presser.id)
+        if chair != nil {
+            strapped.remove(presser.id)
+            presser.seated = false
+            try await walk(presser, to: Stage.consoleX - 45, speed: 240)
+        }
         presser.facing = presser.x(at: .now) < Stage.consoleX ? 1 : -1
         presser.reachTo = Stage.redButton
         try await sleep(0.7)
@@ -1003,6 +1244,17 @@ final class Director {
         sound.beep()
         try await sleep(0.4)
         presser.reachTo = nil
+        if let chair {
+            mention(presser, "Back to my chair!", 1.4)
+            try await walk(presser, to: chair, speed: 300)
+            presser.seated = true
+            presser.facing = 0
+            if wasStrapped {
+                strapped.insert(presser.id)
+                strapT0 = .now
+                sound.clunk()
+            }
+        }
 
         let t0 = Date.now + 0.2
         for (p, kind) in riders {
@@ -1114,6 +1366,13 @@ final class Director {
         for (p, m) in zip(people, moods) { p.mood = m }
     }
 
+    /// A mirror in the house or spare room swings into view so `people` (standing) can see what they've turned into.
+    private func standingMirror(_ people: [Person], caption seen: String, seconds: Double = 4) async throws {
+        mirrorFolks = people.map(\.id)
+        try await showMirror(people, caption: seen, seconds: seconds)
+        mirrorFolks = []
+    }
+
     private func seat(_ people: [Person], chairs: [Int]) {
         for (p, i) in zip(people, chairs) {
             p.seated = true
@@ -1150,6 +1409,13 @@ final class Director {
     }
 
     // MARK: The flying zoo
+
+    private func moveMini(to point: CGPoint, over seconds: Double) {
+        miniFrom = seconds == 0 ? point : miniSaucer(at: .now) ?? point
+        miniTo = point
+        miniT0 = .now
+        miniDur = seconds
+    }
 
     private func movePod(to point: CGPoint, over seconds: Double) {
         podFrom = seconds == 0 ? point : pod(at: .now) ?? point
@@ -1255,7 +1521,7 @@ final class Director {
         (greeter.facing, cashier.facing) = (1, 1)
         sound.roar()
         try await say(greeter, "Step right up! Get transformed into an alien animal! Only $\(venue.price), kids $\(venue.kidPrice)!", 3.2)
-        try await say(cashier, "Pick any animal you like — gorilla, lion, tiger, even an aardvark!", 2.6)
+        try await say(cashier, "Pick any animal you like — gorilla, pink tiger, rainbow tiger, even an aardvark!", 2.6)
         try await say(greeter, "And it dissolves in eight hours!", 2.2)
 
         for n in 1...venue.groups {
@@ -1305,7 +1571,7 @@ final class Director {
         let firstYes = Double.random(in: 0...1) < (withKid ? venue.kidYes : venue.adultYes)
         if withKid {
             try await say(first, firstYes ? ["Yes! Can I? Please?", "A TIGER? Cool!", "In a flying zoo? YES!"].randomElement()!
-                                           : ["No way, that's too wild!", "Nope! I'm scared of lions!", "Maybe when I'm bigger."].randomElement()!, 2.2)
+                                           : ["No way, that's too wild!", "Nope! I'm scared of tigers!", "Maybe when I'm bigger."].randomElement()!, 2.2)
         } else {
             try await say(first, firstYes ? ["Sure, why not!", "Beam me up!", "I've always wanted to be a butterfly!"].randomElement()!
                                            : ["No thanks!", "Not today!", "Uh… I'll pass."].randomElement()!, 2.2)
@@ -1532,17 +1798,12 @@ final class Director {
 
         try await look(at: Stage.full)
         if first {
-            caption = "Back in the house, they see a glowing red button — with a note on it!"
-            buttonShown = true
+            caption = "Back in the living room, they talk it over."
             try await gatherAtButton(cast)
-            try await say(hailey, "There's a note on it!", 1.8)
-            card = .note
-            cardUntil = .now + 10
-            try await sleep(10.2)
-            try await say(debbie, "So we can do it again and make more money!", 2.6)
+            try await say(debbie, "With our own machine out back, we can do this again and make more money!", 3)
             try await say(molly, "And next time we get to pick what kind of animal we are!", 2.6)
         } else {
-            caption = "The glowing red button is waiting in the living room."
+            caption = "The transformation machine is waiting out in the backyard cottage."
             try await gatherAtButton(cast.filter(\.visible))
         }
     }
@@ -1591,8 +1852,8 @@ final class Director {
         let home = cast.filter { $0 !== away }
         let others = home.filter { $0 !== shopper }
         let waving = others + (overnight.map { [$0] } ?? [])
-        try await say(shopper, shopper.isKid ? "That's two trips! I'll do the shopping and put our money in the bank, just like Mom does."
-                                             : "That's two trips! I'm going shopping, and I'll put our money in the bank.", 3.2)
+        try await say(shopper, shopper.isKid ? "That's it for today! I'll do the shopping and put our money in the bank, just like Mom does."
+                                             : "That's it for today! I'm going shopping, and I'll put our money in the bank.", 3.2)
         if let overnight { try await say(overnight, "Go ahead, \(shopper.id). We'll wait right here.", 2.2) }
         shout(waving, "See you soon!", 1.6)
         try await sleep(1.8)
@@ -1803,9 +2064,9 @@ final class Director {
         cousin.facing = 1
         try await look(at: Stage.shot(centerX: 520, height: 230))
         try await say(cousin, "How do you make money?", 1.8)
-        try await say(hailey, "See this glowing red button? It calls a flying zoo full of alien animals!", 3)
+        try await say(hailey, "We have a transformation machine out in our backyard cottage — and a flying zoo full of alien animals!", 3.4)
         try await say(cousin, "Animals?! Can I be one too?", 2)
-        try await say(molly, "Yes! Come on — press it!", 1.8)
+        try await say(molly, "Yes! Come on — out back!", 1.8)
 
         // The cousin's trip: she asks the customers, Hailey takes the money, and Molly works the machine.
         team = [cousin, hailey, molly]
@@ -1813,22 +2074,22 @@ final class Director {
         try await callThePod(trio, pusher: cousin, caller: hailey, seated: trio, newcomer: cousin, newcomerLines: (cl.spot, cl.beamUp))
         try await look(at: Stage.chairsView)
         try await say(cousin, cl.inPod, 2.2)
-        try await say(leader, "Welcome back! And who is this little one?", 2.4)
-        try await say(molly, "Our cousin \(cousin.id)!", 1.8)
+        try await say(hailey, "Welcome to our animal cottage, \(cousin.id)!", 2.2)
+        try await say(molly, "You get the middle chair!", 1.8)
         try await strap(trio)
         caption = "Straps snap across all three of them."
         try await say(cousin, cl.straps, 2)
         let picks = try await pickKinds(trio)
         let cousinKind = picks[1].1
         try await look(at: Stage.full)
-        try await say(leader, "Just relax.", 1.8)
-        caption = "The alien animal presses the glowing red button…"
-        try await runMachine(picks, presser: leader, change: Machine.change,
+        try await say(hailey, "Just relax. I'll press the button!", 2)
+        caption = "Hailey hops up to press the glowing red button…"
+        try await runMachine(picks, presser: hailey, change: Machine.change,
                              tingleLine: (cousin, cl.tingle), legsStartLine: (cousin, cl.legs), bodyLine: (cousin, cl.body),
                              faceShouts: (cousin, [(cl.face, 15), (cl.faceShout, 17)]), beamOnShout: 1)
         try await look(at: Stage.full)
-        try await say(leader, "Have a look!", 1.8)
-        caption = "The alien animals lower the big mirror…"
+        try await say(molly, "Look in the mirror!", 1.8)
+        caption = "The big mirror rolls down…"
         try await showMirror(trio, caption: "…and \(cousin.id) sees an alien animal looking back!", calm: [cousin])
         try await look(at: Stage.chairsView)
         try await say(cousin, cl.headFeel, 2.4)
@@ -1837,6 +2098,7 @@ final class Director {
         try await say(molly, picks[2].1.reaction, 2.4)
         try await snap(trio)
         unstrap(trio)
+        try await zooPickup(trio)
         try await say(leader, "\(cousin.id) asks the customers, Hailey takes the money, and Molly works the machine.", 3.4)
         try await tripToVenue()
         try await comeHome(gather: false)
@@ -1882,10 +2144,8 @@ final class Director {
             try await say(aunt, "Really? What did you do all day?", 2.2)
         }
         aunt.mood = .happy
-        try await say(cousin, "Come see! It's this button!", 1.8)
-        try await walk(cousin, to: Stage.buttonX - 26, speed: 120)
-        cousin.facing = 1
-        try await say(cousin, "It calls a flying zoo! Come on a trip with us, Mommy! Please?", 2.8)
+        try await say(cousin, "Come see! It's out back in the cottage!", 2)
+        try await say(cousin, "There's a machine, and a flying zoo! Come on a trip with us, Mommy! Please?", 3)
         try await say(aunt, "A flying zoo? Well… now I have to see this!", 2.4)
         let sibling = Bool.random() ? hailey : molly
         let stayer = sibling === hailey ? molly : hailey
@@ -1897,7 +2157,7 @@ final class Director {
         try await callThePod(three, pusher: cousin, caller: sibling, seated: three, newcomer: aunt, newcomerLines: (al.spot, al.beamUp))
         try await look(at: Stage.chairsView)
         try await say(aunt, al.inPod, 2.6)
-        try await say(leader, "Welcome! Your daughter tells us you would like to try.", 2.6)
+        try await say(sibling, "Welcome to our animal cottage, Aunt \(aunt.id)!", 2.4)
         try await say(aunt, al.whatsNext, 2.8)
         try await say(sibling, "Just sit back and enjoy it, \(aunt.id). You'll love it!", 2.4)
         try await strap(three)
@@ -1906,15 +2166,15 @@ final class Director {
         let picks2 = try await pickKinds(three, silent: true)
         let auntKind = picks2[1].1
         try await look(at: Stage.full)
-        try await say(leader, "Just relax.", 1.8)
-        caption = "The alien animal presses the glowing red button…"
-        try await runMachine(picks2, presser: leader, change: Machine.change,
+        try await say(sibling, "Just relax. I'll press the button!", 2)
+        caption = "\(sibling.id) hops up to press the glowing red button…"
+        try await runMachine(picks2, presser: sibling, change: Machine.change,
                              tingleLine: (aunt, al.tingle), legsStartLine: (aunt, al.legs), bodyLine: (aunt, al.body),
                              faceShouts: (aunt, [(al.face, 15), (al.faceShout, 17)]), beamOnShout: 1)
         try await feelHead(aunt, line: al.headFeel)
         try await look(at: Stage.full)
-        try await say(leader, "Have a look!", 1.8)
-        caption = "The alien animals lower the big mirror…"
+        try await say(cousin, "Look in the mirror, Mommy!", 1.8)
+        caption = "The big mirror rolls down…"
         try await showMirror(three, caption: "…and \(aunt.id) sees an alien animal looking back!", calm: [aunt])
         try await look(at: Stage.chairsView)
         try await say(aunt, auntKind.reaction, 2.4)
@@ -1923,6 +2183,7 @@ final class Director {
         try await say(aunt, al.secret, 3)
         try await snap(three)
         unstrap(three)
+        try await zooPickup(three)
         try await say(leader, "\(aunt.id) asks the customers, \(cousin.id) takes the money, and \(sibling.id) works the machine.", 3.4)
         try await tripToVenue()
         try await comeHome(gather: false, stayedHome: [debbie, stayer])
@@ -1939,6 +2200,41 @@ final class Director {
         } else {
             try await say(debbie, "No profit to share this time, \(aunt.id) — sorry!", 2.4)
             try await say(aunt, "Don't be! I wouldn't have missed it.", 2.2)
+        }
+
+        // Before they go, the cousin and the aunt each play the Animals of Poker in the spare room.
+        try await look(at: Stage.shot(centerX: 520, height: 250))
+        try await say(molly, "\(cousin.id), before you go — come play the game machine in the spare room!", 3)
+        try await say(hailey, "Bet the max every hand, and at game 10 a little flying saucer comes out!", 3)
+        try await say(cousin, "Can I, Mommy? Please?", 1.8)
+        try await say(aunt, "Go on, sweetie. I'll watch.", 2)
+        let cousinNew = AnimalKind.allCases.filter { $0 != cousinKind }.randomElement()!
+        try await toSpareRoom(player: cousin, watchers: [aunt, molly])
+        try await say(cousin, "It's lighting up! 200 credits!", 2)
+        try await playPoker(cousin)
+        try await gameTen(cousin, kind: cousinNew,
+                          lines: (spot: "The flying saucer!", tingle: "Hee-hee, it tickles!", legs: "My feet are changing!",
+                                  body: "I have fur and a tail again!", face: "Mommy, look at my face!"))
+        cousin.mood = .beaming
+        try await say(cousin, "I'm an alien \(cousinNew.name) now! Your turn, Mommy!", 2.4)
+        cousin.mood = .happy
+        try await say(aunt, "All right, all right — let me sit down.", 2.2)
+        try await swapPlayer(to: aunt, from: cousin)
+        try await say(aunt, "Bet max every hand… here goes!", 2)
+        let auntNew = AnimalKind.allCases.filter { $0 != auntKind && $0 != cousinNew }.randomElement()!
+        try await playPoker(aunt)
+        try await gameTen(aunt, kind: auntNew,
+                          lines: (spot: "Here it comes again!", tingle: "Oh, that tickles!", legs: "It's starting at my toes!",
+                                  body: "There goes my tummy!", face: "Oh my — my face!"))
+        aunt.mood = .beaming
+        try await say(aunt, "An alien \(auntNew.name)! This machine is something else!", 2.6)
+        aunt.mood = .happy
+        try await say(cousin, "We're going home as animals, Mommy!", 2.2)
+        try await sceneChange {
+            self.place = .house
+            self.show(self.cast + self.visitors)
+            for (p, x) in zip(self.visitors + self.cast, [445.0, 472, 520, 565, 605]) { (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 0) }
+            self.cutNow(Stage.full)
         }
 
         // Home time for the aunt and cousin.
@@ -2001,7 +2297,7 @@ final class Director {
         debbie.load = nil
 
         try await look(at: Stage.shot(centerX: 520, height: 230))
-        try await say(hailey, "\(sitter.id), see this glowing red button? It calls a flying zoo!", 2.8)
+        try await say(hailey, "\(sitter.id), we have a transformation machine in our backyard cottage — and a flying zoo!", 3)
         try await say(molly, "Full of animal people!", 1.8)
         try await say(sitter, "Animal people? Okay, I have to see this!", 2.2)
 
@@ -2011,7 +2307,7 @@ final class Director {
         try await callThePod(trio, pusher: molly, caller: hailey, seated: trio, newcomer: sitter, newcomerLines: (sl.spot, sl.beamUp))
         try await look(at: Stage.chairsView)
         try await say(sitter, sl.inPod, 2.6)
-        try await say(leader, "Welcome back! And a new friend!", 2)
+        try await say(molly, "Welcome to our animal cottage!", 2)
         try await say(hailey, "This is \(sitter.id), our babysitter!", 2)
         try await say(sitter, sl.whatsNext, 2.8)
         try await strap(trio)
@@ -2020,15 +2316,15 @@ final class Director {
         let picks = try await pickKinds(trio, silent: true)
         let firstKind = picks[1].1
         try await look(at: Stage.full)
-        try await say(leader, "Just relax.", 1.8)
-        caption = "The alien animal presses the glowing red button…"
-        try await runMachine(picks, presser: leader, change: Machine.change,
+        try await say(hailey, "Just relax. I'll press the button!", 2)
+        caption = "Hailey hops up to press the glowing red button…"
+        try await runMachine(picks, presser: hailey, change: Machine.change,
                              tingleLine: (sitter, sl.tingle), legsStartLine: (sitter, sl.legs), bodyLine: (sitter, sl.body),
                              faceShouts: (sitter, [(sl.face, 15), (sl.faceShout, 17)]), beamOnShout: 1)
         try await feelHead(sitter, line: sl.headFeel)
         try await look(at: Stage.full)
-        try await say(leader, "Have a look!", 1.8)
-        caption = "The alien animals lower the big mirror…"
+        try await say(molly, "Look in the mirror!", 1.8)
+        caption = "The big mirror rolls down…"
         try await showMirror(trio, caption: "…and \(sitter.id) sees an alien animal looking back!", calm: [sitter])
         try await look(at: Stage.chairsView)
         try await say(sitter, firstKind.reaction, 2.4)
@@ -2036,6 +2332,7 @@ final class Director {
         try await say(sitter, sl.secret, 2.8)
         try await snap(trio)
         unstrap(trio)
+        try await zooPickup(trio)
         try await say(leader, "\(sitter.id) asks the customers, Molly takes the money, and Hailey works the machine.", 3.4)
         try await tripToVenue()
         try await comeHome(gather: false)
@@ -2044,9 +2341,10 @@ final class Director {
         // Second trip.
         try await say(hailey, "One more trip before bedtime!", 2)
         try await callThePod(trio, pusher: sitter, caller: molly, seated: trio)
-        try await transformAgain(trio, quick: true, welcome: "Welcome back! Pick your animals, everybody!", legsStartLine: (sitter, sl.again))
+        try await transformAgain(trio, presser: sitter, quick: true, welcome: "Pick your animals, everybody!", legsStartLine: (sitter, sl.again))
         try await snap(trio)
         unstrap(trio)
+        try await zooPickup(trio)
         team = [hailey, sitter, molly]
         try await say(leader, "This time Hailey asks the customers, \(sitter.id) takes the money, and Molly works the machine.", 3.4)
         try await tripToVenue()
@@ -2112,54 +2410,75 @@ final class Director {
 
     // MARK: Doing it again
 
-    /// Press the red button: the zoo comes back, and everyone picks her own type of alien animal.
+    /// Out to the cottage: everyone picks her own type of alien animal, then the zoo picks them up.
     private func doItAgain() async throws {
         try await say(debbie, "Let's do it again!", 1.8)
         rotation += 1
         team = (0..<3).map { cast[(rotation + $0) % 3] }
-        try await callThePod(cast, pusher: cast.randomElement()!, caller: hailey, seated: cast)
-        try await transformAgain(cast, legsStartLine: (molly, "It tickles again!"), bodyLine: (hailey, "Here comes our fur!"))
+        let presser = cast.randomElement()!
+        try await callThePod(cast, pusher: presser, caller: hailey, seated: cast)
+        try await transformAgain(cast, presser: presser, legsStartLine: (molly, "It tickles again!"), bodyLine: (hailey, "Here comes our fur!"))
         try await snap(cast)
         unstrap(cast)
+        try await zooPickup(cast)
         let (g, c, m) = roles
         try await say(leader, "\(g.id) asks the customers, \(c.id) takes the money, and \(m.id) works the machine.", 3.4)
     }
 
-    /// `pusher` presses the glowing red button in the living room, and the flying zoo pulls `riders` up out of the front yard.
-    /// A `newcomer` has never seen the zoo before, and is delighted by it.
+    /// `pusher` leads everyone out back to the cottage; `seated` take the chairs and the rest stand by.
+    /// A `newcomer` has never seen it before; her `newcomerLines` are saved for when the flying zoo picks them up.
     private func callThePod(_ riders: [Person], pusher: Person, caller: Person, seated: [Person], newcomer: Person? = nil,
                             newcomerLines: (spot: String, beam: String) = ("Oh, how fun! A flying zoo!", "Wheee!")) async throws {
-        try await say(pusher, pusher.isKid ? "Can I press it? Please?" : ["I'll press it!", "Let me!", "Here goes!"].randomElement()!, 1.6)
-        caption = "\(pusher.id) presses the glowing red button…"
-        try await walk(pusher, to: Stage.buttonX - 26)
-        pusher.facing = 1
-        pusher.reachTo = CGPoint(x: Stage.buttonX, y: Stage.floorY - min(75, pusher.height * 0.47))
-        try await sleep(0.6)
-        buttonPressT0 = .now
-        sound.beep()
-        try await sleep(0.5)
-        pusher.reachTo = nil
-
-        caption = "…and the flying zoo comes back to take them aboard!"
-        try await look(at: Stage.full)
-        podShown = true
-        movePod(to: CGPoint(x: Stage.yardPodX - 400, y: -170), over: 0)
-        movePod(to: CGPoint(x: Stage.yardPodX, y: Stage.floorY - Stage.hoverLift), over: 3)
-        sound.hum(true)
-        try await sleep(3.1)
-        sound.roar()
-        try await say(caller, "It's here! Come on!", 1.8)
-        if let n = newcomer {
-            try await say(n, newcomerLines.spot, 2.4)
+        try await say(pusher, pusher.isKid ? "Come on! Out to the cottage!" : ["To the cottage!", "Out back, everybody!", "Let's go!"].randomElement()!, 1.8)
+        pickupNewcomer = newcomer.map { ($0, newcomerLines) }
+        try await sceneChange {
+            self.place = .cottage
+            self.podShown = false
+            for (i, p) in riders.enumerated() {
+                let x = -40 - Double(i) * 40
+                (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 1)
+                p.seated = false
+                p.place(height: 0)
+            }
+            self.show(riders)
+            self.cutNow(Stage.full)
         }
-        caption = "Everyone hurries out to the front yard."
-        try await walkAll(zip(riders, Stage.yardLine).map { ($0, $1) }, speed: 170)
-        try await look(at: Stage.yardView)
+        caption = "\(pusher.id) leads everyone across the backyard to the cottage."
+        let standing = riders.filter { p in !seated.contains { $0 === p } }
+        try await walkAll(zip(seated, Stage.chairX).map { ($0, $1) } + zip(standing, Stage.cottageStandX).map { ($0, $1) }, speed: 170)
+        seat(seated, chairs: Array(0..<seated.count))
+        for p in standing { p.facing = -1 }
+        if let n = newcomer {
+            try await say(n, n.isKid ? "Whoa! A transformation machine in your backyard?!" : "A transformation machine… in a backyard cottage?!", 2.6)
+        }
+        try await say(caller, "Sit back and get comfy!", 1.8)
+    }
+
+    /// Everyone walks out to the backyard; the flying zoo comes down (the red button called it), pulls them up,
+    /// and they're aboard with the alien animals.
+    private func zooPickup(_ riders: [Person]) async throws {
+        let newcomer = pickupNewcomer
+        pickupNewcomer = nil
+        try await look(at: Stage.full)
+        if !podShown {
+            caption = "The glowing red button calls the flying zoo…"
+            podShown = true
+            movePod(to: CGPoint(x: Stage.backPodX - 400, y: -170), over: 0)
+            movePod(to: CGPoint(x: Stage.backPodX, y: Stage.floorY - Stage.hoverLift), over: 3)
+            sound.hum(true)
+            try await sleep(3.1)
+            sound.roar()
+        }
+        if let (n, lines) = newcomer {
+            try await say(n, lines.spot, 2.4)
+        }
+        caption = "Everyone hurries out to the backyard."
+        try await walkAll(zip(riders, Stage.backLine).map { ($0, $1) }, speed: 170)
         for p in riders { p.facing = 0 }
-        caption = newcomer.map { "The zoo pulls them in — \($0.id) too!" } ?? "The zoo pulls them in again!"
-        if let n = newcomer { shout([n], newcomerLines.beam, 2) }
+        caption = newcomer.map { "The zoo pulls them in — \($0.0.id) too!" } ?? "The zoo pulls them in!"
+        if let (n, lines) = newcomer { shout([n], lines.beam, 2) }
         try await beamUp(riders)
-        movePod(to: CGPoint(x: Stage.yardPodX + 500, y: -220), over: 2.2)
+        movePod(to: CGPoint(x: Stage.backPodX + 500, y: -220), over: 2.2)
         try await sleep(1.9)
 
         try await sceneChange {
@@ -2171,9 +2490,7 @@ final class Director {
                 p.place(height: 0)
             }
             (self.leader.x0, self.leader.x1, self.leader.facing) = (Stage.consoleX - 45, Stage.consoleX - 45, -1)
-            self.seat(seated, chairs: Array(0..<seated.count))
-            let standing = riders.filter { p in !seated.contains { $0 === p } }
-            for (p, x) in zip(standing, Stage.standByX) {
+            for (p, x) in zip(riders, [Stage.chairX[0], Stage.chairX[1], Stage.chairX[2], Stage.standByX[0]]) {
                 (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 1)
                 p.seated = false
                 p.place(height: 0)
@@ -2181,26 +2498,27 @@ final class Director {
             self.show(self.crew + riders)
             self.cutNow(Stage.full)
         }
+        caption = "Aboard the flying zoo!"
+        sound.roar()
+        try await say(leader, "Welcome aboard!", 1.6)
     }
 
-    /// Up to three of them in the chairs: each picks her type of alien animal, the commander presses
+    /// Up to three of them in the cottage chairs: each picks her type of alien animal, `presser` hops up and presses
     /// the red button, and they see themselves in the mirror. `quick` is the shorter show for old hands.
-    private func transformAgain(_ riders: [Person], quick: Bool = false, welcome: String? = nil, legsStartLine: (Person, String)? = nil,
-                                bodyLine: (Person, String)? = nil) async throws {
+    private func transformAgain(_ riders: [Person], presser: Person, quick: Bool = false, welcome: String? = nil,
+                                legsStartLine: (Person, String)? = nil, bodyLine: (Person, String)? = nil) async throws {
         try await strap(riders)
-        caption = "Strapped into the chairs again, surrounded by the alien animals."
-        try await say(leader, welcome ?? (quick ? "Welcome back! You know the drill — pick your animals!"
-                                                : "Welcome back! This time you choose what type of alien animal you want to be."), 3.4)
+        caption = "Strapped into the chairs in the cottage."
+        try await say(presser, welcome ?? (quick ? "You know the drill — pick your animals!"
+                                                 : "This time we each choose what type of alien animal we want to be!"), 3)
         let riders = try await pickKinds(riders)
         try await look(at: Stage.full)
-        try await say(leader, "Just relax.", 1.8)
-        caption = "The alien animal presses the glowing red button…"
-        try await runMachine(riders, presser: leader, change: quick ? Machine.customerChange : Machine.change,
+        caption = "\(presser.id) hops up to press the glowing red button…"
+        try await runMachine(riders, presser: presser, change: quick ? Machine.customerChange : Machine.change,
                              tingleShout: "This really tickles!", legsStartLine: legsStartLine, bodyLine: bodyLine,
                              facesLine: "Now our faces!")
         try await look(at: Stage.full)
-        try await say(leader, "Have a look!", 1.8)
-        caption = "The alien animals lower the big mirror…"
+        caption = "The big mirror rolls down…"
         try await showMirror(riders.map(\.0), caption: "…and they see what type of animal they picked!", seconds: quick ? 3 : 4)
         try await look(at: Stage.chairsView)
         for (p, kind) in riders {
@@ -2226,7 +2544,426 @@ final class Director {
         return picked
     }
 
+    // MARK: Card games at home
+
+    /// The next outing: you pick a flying zoo trip or one of the card games, hosted at the house.
+    private func outing() async throws {
+        try await look(at: Stage.full)
+        caption = "A flying zoo trip — or host a card game at the house?"
+        let pick = await withCheckedContinuation { cont in
+            outingPick = cont
+            choosingOuting = true
+        }
+        try Task.checkCancellation()
+        switch pick {
+        case .trip:
+            try await doItAgain()
+            try await tripToVenue()
+            try await comeHome()
+        case .cards(let game):
+            try await hostCardGame(game)
+        }
+    }
+
+    /// Waits for you, unless auto-play is on.
+    private func ask(_ p: PlayerPrompt, auto: PlayerAnswer) async throws -> PlayerAnswer {
+        try Task.checkCancellation()
+        if autoPlay { return auto }
+        let a = await withCheckedContinuation { cont in
+            answerWait = cont
+            answerAuto = auto
+            prompt = p
+        }
+        try Task.checkCancellation()
+        return a
+    }
+
+    /// The bridge a game uses to ask you, lay cards on the table and update the scoreboard.
+    private func tableHost(human: Int?) -> TableHost {
+        TableHost(human: human,
+                  ask: { [unowned self] p, auto in try await ask(p, auto: auto) },
+                  show: { [unowned self] groups in tableGroups = groups },
+                  hand: { [unowned self] cards in if human != nil { myHand = cards } },
+                  notes: { [unowned self] notes in
+                      guard var b = board else { return }
+                      // Scoreboard rows line up with the seats.
+                      for (i, n) in notes.enumerated() where b.rows.indices.contains(i) { b.rows[i].note = n }
+                      board = b
+                  },
+                  caption: { [unowned self] text in caption = text },
+                  pause: { [unowned self] seconds in try await sleep(seconds) })
+    }
+
+    /// No travel: the family hosts `game` at the house. Debbie and the girls invite passers-by from the front yard,
+    /// every guest who plays goes out to the backyard cottage and is turned into an alien animal ($10 a transformation),
+    /// then they all play at the house. Guests go home still animals — it dissolves in eight hours.
+    private func hostCardGame(_ game: CasinoGame) async throws {
+        let (debbie, hailey, molly) = (debbie, hailey, molly)
+        let girls = [hailey, molly]
+        let daughter = girls.randomElement()!
+        let sister = girls.first { $0 !== daughter }!
+        // Debbie and the daughter take two seats; guests fill the rest.
+        let need = game.funSeats - 2
+        let startCash = cash
+        let fee = CasinoGame.transformFee
+        served = []
+        result = nil
+
+        try await sceneChange {
+            self.place = .house
+            self.venue = nil
+            self.customers = []
+            self.show(self.cast)
+            for (p, x) in zip(self.cast, Stage.livingX) {
+                (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 0)
+                p.seated = false
+                p.place(height: 0)
+            }
+            self.cutNow(Stage.full)
+        }
+        try await look(at: Stage.shot(centerX: 530, height: 250))
+        caption = "No flying zoo today — the family is hosting \(game.name) at home!"
+        try await say(debbie, "No trip today, girls. Let's host a game of \(game.name) right here at our house!", 3)
+        try await say(debbie, "Everybody who plays goes through the machine in the cottage first. $\(fee) a transformation!", 3)
+        try await say(molly, "And we get turned into animals too, right, Mom?", 2.2)
+        try await say(debbie, "You bet! It's a just-for-fun game — the whole family plays as alien animals!", 2.8)
+        try await say(daughter, "Can I play too, Mom? Pleeease?", 2.2)
+        try await say(debbie, "Sure, sweetie — you're in! Let's go find some players.", 2.6)
+
+        // Out front, inviting the neighbors.
+        caption = "Debbie and the girls head out to the front yard to invite people walking by."
+        try await look(at: Stage.full)
+        try await walkAll([(debbie, Stage.inviteX[0]), (hailey, Stage.inviteX[1]), (molly, Stage.inviteX[2])], speed: 150)
+        for p in cast { p.facing = -1 }
+        try await look(at: Stage.yardView)
+
+        var players: [Person] = []
+        // A girl who becomes an alien animal plays if there was a seat for her; otherwise she watches.
+        var kids: [(kid: Person, mother: Person, alien: Bool, plays: Bool)] = []
+        var asked = 0
+        var filled = 0
+        while filled < need {
+            asked += 1
+            // After nine no's, the tenth person says yes so there's a game.
+            let mustSayYes = asked >= 10
+            let waiting = players.count + kids.count
+            if let (p, kid, alien, plays) = try await inviteNeighbor(game, waitSlot: waiting, filled: filled, need: need, mustSayYes: mustSayYes) {
+                players.append(p)
+                filled += 1 + (plays ? 1 : 0)
+                if let kid { kids.append((kid, p, alien, plays)) }
+            }
+        }
+        if filled < need {
+            caption = "Debbie has asked \(asked) people — time to play with \(filled == 1 ? "one guest" : "\(filled) guests")."
+            try await say(debbie, "That's enough asking — let's play!", 2.2)
+        }
+        let guests = players.flatMap { p in [p] + kids.filter { $0.mother === p && $0.plays }.map(\.kid) }
+        let goingAnimal = players.flatMap { p in [p] + kids.filter { $0.mother === p && $0.alien }.map(\.kid) }
+
+        // Out back to the cottage, three chairs at a time.
+        try await say(debbie, players.count == 1 ? "First stop: the cottage out back!" : "First stop, everybody: the cottage out back!", 2.4)
+        let presser = Bool.random() ? debbie : sister
+        try await sceneChange {
+            self.place = .cottage
+            self.podShown = false
+            let all = goingAnimal + self.cast
+            self.show(all)
+            for (i, p) in goingAnimal.enumerated() {
+                let x = Stage.backyardWaitX[i % Stage.backyardWaitX.count]
+                (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, 1)
+                p.seated = false
+                p.place(height: 0)
+            }
+            let helpers = self.cast.filter { $0 !== presser }
+            (presser.x0, presser.x1, presser.moveDur, presser.facing) = (Stage.consoleX - 45, Stage.consoleX - 45, 0, -1)
+            for (p, x) in zip(helpers, Stage.cottageStandX) { (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, -1) }
+            for p in self.cast {
+                p.seated = false
+                p.place(height: 0)
+            }
+            self.cutNow(Stage.full)
+        }
+        if let guest = players.first {
+            try await say(guest, ["A transformation machine… in your backyard?!", "Whoa! So this is the machine!", "Is this thing for real?"].randomElement()!, 2.6)
+        }
+        try await say(presser, presser.isKid ? "Sit down and pick any animal you want!" : "Have a seat, and pick any animal you like!", 2.4)
+        var earned = 0
+        for start in stride(from: 0, to: goingAnimal.count, by: 3) {
+            let group = Array(goingAnimal[start..<min(start + 3, goingAnimal.count)])
+            caption = group.count == 1 ? "\(group[0].id) takes a chair in the cottage." : "The machine takes three at a time — in they go!"
+            try await look(at: Stage.full)
+            try await walkAll(zip(group, Stage.chairX).map { ($0, $1) }, speed: 150)
+            seat(group, chairs: Array(0..<group.count))
+            try await strap(group)
+            var riders: [(Person, AnimalKind)] = []
+            for p in group {
+                let kind = AnimalKind.allCases.randomElement()!
+                try await say(p, ["\(kind.name), please!", "I want to be a \(kind.name)!", "Make me a \(kind.name)!"].randomElement()!, 2)
+                riders.append((p, kind))
+            }
+            try await say(presser, presser.isKid ? "Hold still! I'm pressing the big red button!" : "Just relax! I'm pressing the glowing red button!", 2.4)
+            try await runMachine(riders, presser: presser, change: Machine.customerChange,
+                                 tingleLine: (group[0], "Ooh, this really tickles!"))
+            try await look(at: Stage.full)
+            caption = "The big mirror rolls down…"
+            try await showMirror(group, caption: group.count == 1 ? "\(group[0].id) sees an alien animal looking back!"
+                                                                  : "They see alien animals looking back!", seconds: 3)
+            try await look(at: Stage.chairsView)
+            for (p, kind) in riders {
+                try await say(p, p.isKid ? ["I'm a \(kind.name)! \(kind.sound)", "Look at my animal ears!", "Best day EVER!"].randomElement()!
+                                         : ["Wow! Look at me! Deal me in!", "An alien \(kind.name)! Now let's play some cards!", kind.reaction].randomElement()!, 2.2)
+                served.append(PersonSpec(p, kind: kind))
+            }
+            // $10 a head for the transformation; moms pay for their girls.
+            let amount = group.count * fee
+            cash += amount
+            earned += amount
+            cashPop = ("+$\(amount) transformation\(group.count > 1 ? "s" : "")", .now, Stage.chairX[1])
+            sound.pay()
+            caption = "Debbie collects the $\(fee) transformation fee\(group.count > 1 ? " — $\(amount) for the group" : "")."
+            try await say(debbie, group.count == 1 ? "That'll be $\(fee) for the transformation!" : "That's $\(fee) each for the transformations!", 2.4)
+            let payer = group.first { !$0.isKid } ?? kids.first { $0.kid === group[0] }?.mother
+            if let payer {
+                try await say(payer, group.count == 1 && payer !== group[0] ? "Here's $\(fee) for \(group[0].id)." :
+                                ["Worth every penny!", "Here you go — what a ride!", "Best ten bucks I ever spent!"].randomElement()!, 2.2)
+            }
+            unstrap(group)
+            for p in group { p.seated = false }
+            try await look(at: Stage.full)
+            try await walkAll(group.enumerated().map { ($1, Stage.backyardWaitX[(start + $0) % Stage.backyardWaitX.count]) }, speed: 150)
+            for p in group { p.facing = 1 }
+        }
+
+        // Once the guests are done, the family takes the chairs too (no charge for family).
+        caption = "Now it's the family's turn in the cottage chairs!"
+        try await say(debbie, "Our turn, girls! Everybody in a chair!", 2.2)
+        try await look(at: Stage.full)
+        try await walkAll(zip(cast, Stage.chairX).map { ($0, $1) }, speed: 170)
+        seat(cast, chairs: [0, 1, 2])
+        try await transformAgain(cast, presser: debbie, quick: true, welcome: "Pick your animals, girls — I'll hop up and press the button!")
+        try await snap(cast)
+        unstrap(cast)
+        for p in cast { p.seated = false }
+        if let guest = players.first {
+            try await say(guest, "The whole family's animals too! Now THIS is a card party!", 2.6)
+        }
+
+        // Back in the house for the game. Girls who stayed human (or had no seat) watch with the sister.
+        var seated = guests
+        seated.insert(daughter, at: Int.random(in: 0...seated.count))
+        let watching = kids.filter { !$0.plays }.map(\.kid)
+        try await sceneChange {
+            self.place = .house
+            let inside = self.cast + players + kids.map(\.kid)
+            self.show(inside)
+            for (i, p) in inside.enumerated() {
+                let x = Stage.tableCrowdX[i % Stage.tableCrowdX.count]
+                (p.x0, p.x1, p.moveDur, p.facing) = (x, x, 0, i % 2 == 0 ? 1 : -1)
+                p.seated = false
+                p.place(height: 0)
+            }
+            self.cutNow(Stage.shot(centerX: 530, height: 260))
+        }
+        caption = "Everyone gathers round the card table in the living room."
+        if !watching.isEmpty {
+            try await say(sister, "\(ListFormatter.localizedString(byJoining: watching.map(\.id))), come watch with me!", 2.2)
+        }
+        you = daughter.id
+        caption = "You're \(daughter.id). Your cards show up along the bottom of the table."
+        try await say(debbie, "No buy-in — this one's just for fun! The winner gets bragging rights.", 2.8)
+
+        let mySeat = seated.firstIndex { $0 === daughter }
+        let table = [debbie] + seated
+        let (scores, hands) = try await playFun(game, table, human: mySeat.map { $0 + 1 })
+        let won = Tricks.winners(game, scores: scores, hands: hands) ?? [scores.indices.max { scores[$0] < scores[$1] }!]
+        let winners = won.map { table[$0].id }
+        caption = "\(winners.joined(separator: " & ")) win\(won.count == 1 ? "s" : "") the game!"
+        sound.chime()
+        if let star = won.map({ table[$0] }).first(where: { $0 === debbie || $0 === daughter }) {
+            try await say(star, star === debbie ? (won.count == 1 ? "Debbie wins! Ha!" : "We did it, partner!") : "I WON! I won, Mom!", 2.2)
+        } else {
+            try await say(table[won[0]], ["Woo-hoo! I win!", "Ha! Beat you all!", "Best game ever!"].randomElement()!, 2.2)
+            try await say(debbie, "Well played!", 1.8)
+        }
+        board = nil
+        tableSeats = []
+        tableGroups = []
+        you = nil
+        myHand = []
+        humanRow = nil
+        prompt = nil
+
+        // The guests head home out the front door, still alien animals.
+        try await look(at: Stage.full)
+        if let p = players.randomElement() {
+            try await say(p, ["Thanks for the game! I love being an alien animal!", "What a fun night! See you next time!",
+                              "Best card party on the whole street!"].randomElement()!, 2.6)
+        }
+        try await say(debbie, "Thanks for coming! It dissolves in eight hours!", 2.4)
+        shout(girls, "Bye!", 1.4)
+        caption = "Out the front door they go — still alien animals!"
+        let leaving = players + kids.map(\.kid)
+        try await walkAll(leaving.enumerated().map { ($1, -60 - Double($0) * 35) }, speed: 140)
+        customers = []
+
+        // The family's change wears off once the guests have gone, over five minutes (sped up).
+        try await gatherAtButton(cast)
+        clockT0 = .now
+        clockDur = 13.5
+        clockLabel = "Five minutes later…"
+        clockSpan = 300
+        caption = "With the guests gone, the family's transformation slowly dissolves…"
+        for p in cast { p.fade(to: 0, over: 12.9) }
+        sound.shimmer()
+        try await sleep(4)
+        mention(molly, "My animal ears are shrinking!", 3)
+        try await sleep(4.5)
+        mention(debbie, "Our fur is melting away…", 3)
+        try await sleep(5)
+        sound.shimmer()
+        caption = "Everyone is back to normal!"
+        try await say(hailey, "We're us again!", 2)
+
+        let record = EventRecord(date: .now, venue: .belmar, asked: asked, customers: served, fee: 0, earned: earned,
+                                 startCash: startCash, endCash: cash, cardGame: game)
+        album.add(record)
+        result = record
+        cardGames += 1
+        totalProfit += record.profit
+        totalTransformed += served.count
+
+        try await gatherAtButton(cast)
+        try await say(debbie, "\(served.count) alien \(served.count == 1 ? "animal" : "animals") at $\(fee) each — that's $\(earned) without leaving the house!", 3)
+        if !winners.isEmpty {
+            try await say(molly, "\(winners.joined(separator: " and ")) won the \(game.name)!", 2.2)
+        }
+        caption = "The \(game.name) game is saved in the album."
+    }
+
+    /// A passer-by on the sidewalk, sometimes with her daughter. Returns her, the girl, whether the girl becomes an animal,
+    /// and whether the girl gets a seat, or nil if they walk on.
+    private func inviteNeighbor(_ game: CasinoGame, waitSlot: Int, filled: Int, need: Int, mustSayYes: Bool) async throws -> (Person, Person?, Bool, Bool)? {
+        let (debbie, hailey, molly) = (debbie, hailey, molly)
+        if guestWomen.isEmpty {
+            guestWomen = ["Angela", "Bonnie", "Brenda", "Carol", "Cheryl", "Denise", "Diane", "Donna", "Ellen", "Fran", "Gina", "Holly",
+                          "Iris", "Joyce", "Karen", "Lena", "Linda", "Maria", "Nancy", "Olivia", "Paula", "Peggy", "Rachel", "Rita",
+                          "Sandy", "Terri", "Tina", "Val", "Wendy", "Yolanda"].shuffled()
+        }
+        if guestKids.isEmpty {
+            guestKids = ["Abby", "Bella", "Chloe", "Daisy", "Ellie", "Gracie", "Ivy", "Josie", "Katie", "Lily", "Maddie",
+                         "Nora", "Piper", "Ruby", "Sophie", "Tessa", "Zoe"].shuffled()
+        }
+        let p = Person.customer(guestWomen.popLast()!, kid: false, x: -80)
+        let kid = Double.random(in: 0...1) < 0.35 ? Person.customer(guestKids.popLast()!, kid: true, x: -115) : nil
+        customers.append(p)
+        if let kid { customers.append(kid) }
+        let stroll = 85.0
+        _ = beginWalk(p, to: Stage.inviteStopX[0], speed: stroll)
+        if let kid { _ = beginWalk(kid, to: Stage.inviteStopX[1], speed: stroll) }
+        caption = "\(p.id) comes strolling down the sidewalk\(kid.map { " with her daughter \($0.id)" } ?? "")."
+        try await sleep((Stage.inviteStopX[0] + 80) / stroll + 0.2)
+        p.facing = 1
+        kid?.facing = 1
+        debbie.facing = -1
+
+        try await say(debbie, "Hi! Want to come in and play \(game.name) with us? It's just for fun!", 2.8)
+        try await say(hailey, "Everybody who plays gets turned into an alien animal first — just $\(CasinoGame.transformFee)!", 2.6)
+        guard mustSayYes || Double.random(in: 0...1) < 0.55 else {
+            try await say(p, ["No thanks, I'm not much for cards.", "Not today, sorry!", "An alien animal? No way!",
+                              "I'm just out walking the dog, thanks!", "Maybe another time."].randomElement()!, 2.4)
+            caption = "\(p.id) keeps walking."
+            p.facing = -1
+            kid?.facing = -1
+            _ = beginWalk(p, to: -150, speed: stroll)
+            if let kid { _ = beginWalk(kid, to: -150, speed: stroll) }
+            try await sleep(1.2)
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds((Stage.inviteStopX[0] + 150) / stroll))
+                self?.customers.removeAll { $0 === p || $0 === kid }
+            }
+            return nil
+        }
+        try await say(p, ["Ooh, I love \(game.name)! Count me in!", "An alien animal AND cards? I'm in!", "Deal me in!",
+                          "I haven't played \(game.name) in ages — I'm in!", "Sounds like fun! I'm in!"].randomElement()!, 2.6)
+        var alien = false
+        let roomForHer = need - filled >= 2
+        if let kid {
+            molly.facing = -1
+            try await say(molly, roomForHer ? "Hi \(kid.id)! Want to be an alien animal and play too?"
+                                            : "Hi \(kid.id)! The table's full — but you can be an alien animal and watch with us! Want to?", 2.8)
+            if Double.random(in: 0...1) < 0.65 {
+                try await say(kid, ["Yes! Can I, Mommy? Please?", "Ooh, yes! I want to be a tiger!", "Yay! Me too!"].randomElement()!, 2.4)
+                try await say(p, "If you really want to, sweetie — sure!", 2.4)
+                alien = true
+            } else {
+                try await say(kid, ["No thanks, I'm shy.", "Nope! I'll just watch.", "Maybe when I'm bigger."].randomElement()!, 2.4)
+                try await say(p, "That's okay, honey. You can watch the game with the girls.", 2.6)
+            }
+        }
+        let plays = alien && roomForHer
+        let left = need - filled - 1 - (plays ? 1 : 0)
+        let who = plays ? "\(p.id) and \(kid!.id) join" : kid != nil ? "\(p.id) joins, and \(kid!.id) will watch" : "\(p.id) joins"
+        caption = left <= 0 ? "\(who) — that's a full table!" : "\(who)! \(left) more spot\(left == 1 ? "" : "s") to fill."
+        try await say(debbie, kid == nil ? "Great! Go on in — make yourself at home!" : "Great! Go on in, you two — make yourselves at home!", 2.4)
+        // Into the living room to wait.
+        let walkers = [p] + (kid.map { [$0] } ?? [])
+        for (i, w) in walkers.enumerated() { _ = beginWalk(w, to: Stage.guestWaitX[(waitSlot + i) % Stage.guestWaitX.count], speed: 130) }
+        try await sleep(1.6)
+        return (p, kid, alien, plays)
+    }
+
+    /// Deals hand after hand until someone reaches the target. You play `human`'s seat. Returns the final scores and hands dealt.
+    private func playFun(_ game: CasinoGame, _ table: [Person], human: Int?) async throws -> ([Int], Int) {
+        let names = table.map(\.id)
+        var scores = names.map { _ in 0 }
+        func rows() -> [BoardRow] {
+            names.indices.map { BoardRow(id: names[$0], value: "\(scores[$0])", note: "", team: game.isPartners ? $0 % 2 : nil) }
+        }
+        tableSeats = table
+        humanRow = human
+        tableGroups = []
+        board = TableBoard(game: game, status: game == .hearts ? "Game ends at \(game.target) · low score wins"
+                                              : game == .diamonds ? "\(game.target) rounds · most crystal points wins" : "First to \(game.target)",
+                           rows: rows())
+        if game.isPartners {
+            caption = "Partners: \(names[0]) & \(names[2]) vs. \(names[1]) & \(names[3])."
+            try await sleep(2.4)
+        }
+        let seats = tableHost(human: human)
+        var hand = 0
+        var dealer = Int.random(in: 0..<names.count)
+        while Tricks.winners(game, scores: scores, hands: hand) == nil && hand < 30 {
+            board?.status = "Hand \(hand + 1) · \(names[dealer]) deals · " + (game == .hearts ? "ends at \(game.target)" : game == .diamonds ? "of \(game.target)" : "to \(game.target)")
+            caption = "Hand \(hand + 1): \(names[dealer]) deals."
+            sound.beep()
+            let r = try await Tricks.hand(game, names: names, scores: scores, dealer: dealer, round: hand, host: seats)
+            hand += 1
+            for i in scores.indices { scores[i] += r.points[i] }
+            var rs = rows()
+            for i in rs.indices where r.points[i] != 0 { rs[i].note = r.points[i] > 0 ? "+\(r.points[i])" : "\(r.points[i])" }
+            board?.rows = rs
+            caption = "Hand \(hand): \(r.note)"
+            try await sleep(3)
+            dealer = (dealer + 1) % names.count
+        }
+        tableGroups = []
+        return (scores, hand)
+    }
+
     // MARK: Helpers
+
+    /// `p` shakes on the spot with fear for `seconds`.
+    private func tremble(_ p: Person, for seconds: Double) async throws {
+        let x = p.x(at: .now)
+        let end = Date.now + seconds
+        var side = 1.0
+        while Date.now < end {
+            (p.x0, p.x1, p.moveDur) = (x + side * 2.5, x + side * 2.5, 0)
+            side = -side
+            try await sleep(0.05)
+        }
+        (p.x0, p.x1, p.moveDur) = (x, x, 0)
+    }
 
     private func sleep(_ seconds: Double) async throws {
         try await Task.sleep(for: .seconds(seconds))
