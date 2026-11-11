@@ -78,7 +78,8 @@ struct CasinoTableView: View {
         .animation(.default, value: director.cash)
     }
 
-    private let felt = Color(red: 0.08, green: 0.45, blue: 0.25)
+    /// Bought at Cosmic Customs (green to start).
+    private var felt: Color { director.custom.felt.color }
 
     private var moneyTable: Bool { board.game.isMoney }
     /// Five or more players at a moneymaker table: smaller seats on a taller felt.

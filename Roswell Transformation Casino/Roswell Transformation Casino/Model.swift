@@ -15,6 +15,11 @@ enum Mood { case happy, shocked }
 /// The colours the machine can turn someone. Each person gets one at random as she sits down.
 enum AlienColor: String, Codable, CaseIterable {
     case green, darkGreen, lightGreen, blue, lightBlue, pink
+    /// Extra colors sold at Cosmic Customs; nobody is turned one of these unless she's bought it as her favorite.
+    case purple, orange, teal, gold, silver
+
+    /// The colors the machine picks from at random.
+    static let basic: [AlienColor] = [.green, .darkGreen, .lightGreen, .blue, .lightBlue, .pink]
 
     /// Lower-case, for lines like "I'm light blue!".
     var name: String {
@@ -25,6 +30,11 @@ enum AlienColor: String, Codable, CaseIterable {
         case .blue: "blue"
         case .lightBlue: "light blue"
         case .pink: "pink"
+        case .purple: "purple"
+        case .orange: "orange"
+        case .teal: "teal"
+        case .gold: "gold"
+        case .silver: "silver"
         }
     }
 
@@ -36,6 +46,11 @@ enum AlienColor: String, Codable, CaseIterable {
         case .blue: RGB(r: 0.32, g: 0.50, b: 0.90)
         case .lightBlue: RGB(r: 0.60, g: 0.82, b: 1.00)
         case .pink: RGB(r: 0.98, g: 0.62, b: 0.80)
+        case .purple: RGB(r: 0.62, g: 0.42, b: 0.88)
+        case .orange: RGB(r: 1.00, g: 0.62, b: 0.28)
+        case .teal: RGB(r: 0.22, g: 0.72, b: 0.70)
+        case .gold: RGB(r: 0.92, g: 0.76, b: 0.30)
+        case .silver: RGB(r: 0.80, g: 0.82, b: 0.86)
         }
     }
 
@@ -48,6 +63,11 @@ enum AlienColor: String, Codable, CaseIterable {
         case .blue: RGB(r: 0.35, g: 0.55, b: 1.00)
         case .lightBlue: RGB(r: 0.60, g: 0.90, b: 1.00)
         case .pink: RGB(r: 1.00, g: 0.55, b: 0.85)
+        case .purple: RGB(r: 0.75, g: 0.50, b: 1.00)
+        case .orange: RGB(r: 1.00, g: 0.70, b: 0.30)
+        case .teal: RGB(r: 0.30, g: 1.00, b: 0.90)
+        case .gold: RGB(r: 1.00, g: 0.88, b: 0.40)
+        case .silver: RGB(r: 0.90, g: 0.94, b: 1.00)
         }
     }
 }
@@ -65,13 +85,17 @@ enum BoothRun {
     static let cool = 3.0
     static let lift = 1.2
     static let total = lower + charge + beam + sparkle + cool + lift
+    static func total(flight: Double) -> Double { total - lower - lift + 2 * flight }
+    /// The saucer's flight out of the cottage, across the yard and into the house to Mom.
+    static let longFlight = 5.0
 
     enum Phase { case lowering, charging, beaming, sparkling, cooling, lifting, done }
 
     /// Which phase the machine is in `t` seconds after the press, and how far through it (0…1).
-    static func phase(_ t: Double) -> (Phase, Double) {
+    /// `flight` is how long the saucers take to fly out (and back) — longer when one has to cross the yard into the house.
+    static func phase(_ t: Double, flight: Double = lower) -> (Phase, Double) {
         var start = 0.0
-        for (phase, length) in [(Phase.lowering, lower), (.charging, charge), (.beaming, beam), (.sparkling, sparkle), (.cooling, cool), (.lifting, lift)] {
+        for (phase, length) in [(Phase.lowering, flight), (.charging, charge), (.beaming, beam), (.sparkling, sparkle), (.cooling, cool), (.lifting, flight)] {
             if t < start + length { return (phase, max(0, (t - start) / length)) }
             start += length
         }
@@ -111,10 +135,22 @@ final class Person: Identifiable {
     /// Fully turned into a Roswell alien.
     var alien = false
     var alienColor = AlienColor.green
+    /// What she's bought at Cosmic Customs and has on (the family only).
+    var look = Look()
     var changeT0 = Date.distantFuture
     var changeDur = 1.0
     /// The alien level the current change runs from and to: 0 → 1 to turn alien, 1 → 0 to turn back.
     var changeFrom = 0.0
+    /// A teleport beam carrying her: `up` floats her up out of sight, otherwise she comes down from above.
+    var lift: (t0: Date, up: Bool)?
+    static let liftTime = 1.8
+    /// How far above the floor the beam has her right now.
+    func liftHeight(at now: Date) -> Double {
+        guard let l = lift else { return 0 }
+        let k = min(max(now.timeIntervalSince(l.t0) / Self.liftTime, 0), 1)
+        let e = k * k * (3 - 2 * k)
+        return 420 * (l.up ? e : 1 - e)
+    }
     var changeTo = 1.0
 
     init(_ id: String, height: Double, headScale: Double = 0.12, skin: RGB, hair: RGB, style: HairStyle,
@@ -183,12 +219,12 @@ extension Person {
 /// the just-for-fun games are played at home for nothing but bragging rights.
 enum CasinoGame: String, Codable, CaseIterable, Identifiable {
     case blackjack, crazy4, letItRide, threeCard, mississippiStud, paiGow, baccarat, caribbeanStud, texasHoldem, omaha
-    case pitch, euchre, hearts, spades, knaves, pepper, ninetyNine, fourHundred, diamonds
+    case pitch, euchre, hearts, spades, knaves, pepper, ninetyNine, fourHundred, diamonds, allFours, fives
 
     var id: Self { self }
 
     static let moneyGames: [CasinoGame] = [.blackjack, .crazy4, .letItRide, .threeCard, .mississippiStud, .paiGow, .baccarat, .caribbeanStud, .texasHoldem, .omaha]
-    static let funGames: [CasinoGame] = [.pitch, .euchre, .hearts, .spades, .knaves, .pepper, .ninetyNine, .fourHundred, .diamonds]
+    static let funGames: [CasinoGame] = [.pitch, .euchre, .hearts, .spades, .knaves, .pepper, .ninetyNine, .fourHundred, .diamonds, .allFours, .fives]
 
     static let buyIn = 50
     static let startCash = 200
@@ -202,7 +238,7 @@ enum CasinoGame: String, Codable, CaseIterable, Identifiable {
     static let handLimit = 150
     /// What the casino charges the family to set up each moneymaker table.
     static let setupFee = 25
-    static let casinoName = "Roswell Transformation Casino"
+    static let casinoName = "Roswell Cottage Casino"
 
     var isMoney: Bool { Self.moneyGames.contains(self) }
 
@@ -227,6 +263,8 @@ enum CasinoGame: String, Codable, CaseIterable, Identifiable {
         case .ninetyNine: "99"
         case .fourHundred: "400"
         case .diamonds: "Diamonds"
+        case .allFours: "All Fours"
+        case .fives: "Fives"
         }
     }
 
@@ -251,6 +289,8 @@ enum CasinoGame: String, Codable, CaseIterable, Identifiable {
         case .ninetyNine: "number.square.fill"
         case .fourHundred: "number.circle.fill"
         case .diamonds: "diamond.fill"
+        case .allFours: "4.circle.fill"
+        case .fives: "5.circle.fill"
         }
     }
 
@@ -275,12 +315,18 @@ enum CasinoGame: String, Codable, CaseIterable, Identifiable {
         case .ninetyNine: "Hit your bid exactly · to \(target)"
         case .fourHundred: "Partners · one to \(target)"
         case .diamonds: "Collect crystals · \(target) rounds"
+        case .allFours: "Partners · High, Low, Jack, Game · to \(target)"
+        case .fives: "Hit exactly \(Self.fivesGoal) in \(target) hands · Magenta 5s"
         }
     }
 
     /// Seats at a just-for-fun table, Mom included.
     var funSeats: Int { self == .knaves || self == .ninetyNine ? 3 : 4 }
-    var isPartners: Bool { [.euchre, .spades, .pepper, .fourHundred].contains(self) }
+    var isPartners: Bool { [.euchre, .spades, .pepper, .fourHundred, .allFours].contains(self) }
+    /// Games that end after a set number of deals instead of at a score.
+    var byRounds: Bool { self == .diamonds || self == .fives }
+    /// Fives: the total every player is aiming for without going over.
+    static let fivesGoal = 25
 
     /// The score that ends a just-for-fun game.
     var target: Int {
@@ -295,6 +341,9 @@ enum CasinoGame: String, Codable, CaseIterable, Identifiable {
         case .fourHundred: 41
         /// Diamonds goes by rounds, not points: one deal per player.
         case .diamonds: 4
+        case .allFours: 11
+        /// Fives goes by hands too: four deals, closest to 25 without going over.
+        case .fives: 4
         default: 0
         }
     }

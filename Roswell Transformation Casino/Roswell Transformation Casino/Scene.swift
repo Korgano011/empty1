@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// World layout: a cut-away side view of the single-story house, in points.
+/// World layout: a cut-away side view of the backyard cottage (left) and the single-story house (right), in points.
 enum Stage {
     static let W = 1200.0
     static let H = 600.0
@@ -9,34 +9,49 @@ enum Stage {
     static let doorwayTop = floorY - 175
 
     static let rooms: [(name: String, x0: Double, x1: Double, wall: RGB)] = [
-        ("Empty Room", 0, 440, RGB(r: 0.90, g: 0.90, b: 0.93)),
-        ("Mom's Room", 440, 580, RGB(r: 0.98, g: 0.85, b: 0.80)),
         ("Bathroom", 580, 690, RGB(r: 0.78, g: 0.90, b: 0.95)),
         ("Living Room", 690, 860, RGB(r: 0.98, g: 0.92, b: 0.78)),
-        ("Ava's Room", 860, 975, RGB(r: 0.80, g: 0.92, b: 0.90)),
-        ("Mia's Room", 975, 1090, RGB(r: 0.88, g: 0.84, b: 0.96)),
+        ("Mom's Room", 860, 975, RGB(r: 0.98, g: 0.85, b: 0.80)),
+        ("Ava's Room", 975, 1090, RGB(r: 0.80, g: 0.92, b: 0.90)),
         ("Rosie's Room", 1090, 1200, RGB(r: 1.00, g: 0.86, b: 0.92)),
     ]
+    /// The cottage out in the backyard runs from the left edge to here; the house's back wall (and back door) is at `houseX0`.
+    static let cottageX1 = 540.0
+    static let houseX0 = 580.0
+    /// Where someone steps out of the house's back door into the yard.
+    static let backDoorX = 592.0
 
-    /// Three chairs, each with its own beam emitter; one glowing button starts them all.
-    static let booth = CGRect(x: 15, y: floorY - 250, width: 285, height: 250)
-    static let seatX = [70.0, 145.0, 220.0]
-    /// The glowing button on its post beside the right-hand chair.
-    static let button = CGPoint(x: 267, y: floorY - 74)
-    /// Where a family member stands to press the button for the players at the casino.
-    static let buttonStand = 292.0
+    /// The Roswell of Poker cabinet, against the cottage's left wall. Its mini saucers launch from the hatch on top.
+    static let machine = CGRect(x: 20, y: floorY - 214, width: 70, height: 214)
+    static var saucerHome: CGPoint { CGPoint(x: machine.midX, y: machine.minY - 6) }
+    /// Where the player stands at the machine, facing it.
+    static let playX = 112.0
+    /// People line up here beside the machine, and a mini saucer comes out over each of them.
+    static let seatX = [140.0, 200.0, 260.0]
     /// A wide mirror: up to three people can look into it at once.
     static let mirror = CGRect(x: 332, y: floorY - 215, width: 96, height: 160)
     /// Where each person stands when a group looks in the mirror together, nearest first.
     static let mirrorStands = [462.0, 487.0, 512.0]
+    /// The mirror over the bathroom sink, and where she stands to look in it.
+    static let bathMirror = CGRect(x: 650, y: floorY - 142, width: 38, height: 54)
+    static let bathStandX = 630.0
+    /// Spots beside the Roswell of Poker for `n` people changed all at once.
+    static func machineSpots(_ n: Int) -> [Double] {
+        guard n > 3 else { return Array(seatX.prefix(n)) }
+        let step = min(60, 190 / Double(n - 1))
+        return (0..<n).map { 120 + Double($0) * step }
+    }
     static let watchX = [322.0, 344.0, 366.0]
     static let doorX = 810.0
     static let couchX = [715.0, 745.0, 775.0]
     /// Where the aunt and cousin stand to turn in on a sleepover (air mattresses on the living-room floor).
     static let sleepoverX = [728.0, 790.0]
-    /// Mom, Ava, Mia, Rosie.
-    static let roomX = [505.0, 915.0, 1030.0, 1143.0]
-    // The casino: the booth stays on the left, the card table is in the middle.
+    /// Mom, Ava, Rosie.
+    static let roomX = [915.0, 1030.0, 1143.0]
+    /// A kid's bedroom across town: the computer on the desk, and where the kid stands to play it.
+    static let kidDeskX = 600.0
+    static let kidPlayX = 660.0
+    // The cottage casino: the machine stays on the left, the card table is in the middle.
     static let table = CGRect(x: 560, y: floorY - 94, width: 400, height: 94)
     /// Mom deals from the middle of the table; players stand at these spots.
     static let dealerX = 760.0
@@ -44,8 +59,7 @@ enum Stage {
     /// A big moneymaker table (up to six guests and the daughter) squeezes in tighter.
     static let crowdSpotX = [582.0, 624.0, 666.0, 708.0, 846.0, 888.0, 930.0]
     static func spots(_ n: Int) -> [Double] { Array((n <= spotX.count ? spotX : crowdSpotX).prefix(n)) }
-    /// Where Ava, Mia and Rosie watch the game from.
-    /// Ava, Mia and Rosie watch from here — and any girls the players brought along.
+    /// Ava and Rosie watch from here — and any girls the players brought along.
     static let girlsTableX = [985.0, 1008.0, 1031.0, 1054.0, 1077.0, 1100.0, 1123.0, 1146.0, 1169.0]
     /// A daughter who's the house stands beside Mom.
     static let houseX = 795.0
@@ -59,6 +73,8 @@ enum Stage {
     static let boutiqueDoorX = 230.0
     static let storeDoorX = 600.0
     static let bankDoorX = 985.0
+    /// Around the corner from the bank: Cosmic Customs' front door.
+    static let customsDoorX = 600.0
     static let exitX = [1160.0, 1124.0, 1088.0, 1052.0, 1016.0, 980.0]
     /// Front doors on the guests' street, one house per household.
     static let guestDoorX = [150.0, 450.0, 750.0, 1050.0]
@@ -75,6 +91,7 @@ enum Stage {
     // Camera shots, all the stage's 2:1 shape.
     static let full = CGRect(x: 0, y: 0, width: W, height: H)
     static let boothView = CGRect(x: 0, y: 215, width: 580, height: 290)
+    static let machineShot = CGRect(x: 0, y: 245, width: 440, height: 220)
     static let tableShot = CGRect(x: 520, y: 215, width: 580, height: 290)
     /// Just-for-fun games at home: Mom deals in the living room, players around her, watchers by the bedrooms.
     static let homeDealerX = 785.0
@@ -113,41 +130,45 @@ func drawStage(_ ctx: GraphicsContext, size: CGSize, director d: Director, now: 
     ctx.scaleBy(x: zoom, y: zoom)
     ctx.translateBy(x: -cam.minX, y: -cam.minY)
 
-    let outdoors = d.inTown || d.inNeighborhood
-    if d.inTown {
+    let outdoors = d.inTown || d.inNeighborhood || d.kidRoom != nil
+    if d.inCustoms {
+        drawCustoms(ctx, now: now, doorOpen: now < d.doorOpenUntil)
+    } else if d.inTown {
         drawTown(ctx, now: now)
     } else if d.inNeighborhood {
         drawNeighborhood(ctx, now: now, day: d.daytime, home: d.outsideHome, doorOpen: now < d.doorOpenUntil)
+    } else if let k = d.kidRoom {
+        drawKidRoom(ctx, kid: k, now: now)
     } else if d.atCasino {
-        drawCasino(ctx, now: now)
+        drawCasino(ctx, d: d, now: now)
         drawStandingMirror(ctx, accent: casinoGold)
     } else {
         drawHouse(ctx, d: d, now: now)
     }
-    if !outdoors { drawBoothBack(ctx, d: d, now: now) }
+    if !outdoors { drawMachine(ctx, d: d, now: now) }
     for x in d.boxes where !d.atCasino && !outdoors { drawBox(ctx, center: CGPoint(x: x, y: Stage.floorY - 13), size: 30) }
 
     let people = d.everyone.filter(\.visible)
     // Everyone standing at the mirror shows up in it, side by side.
-    let looking = Stage.mirrorStands.compactMap { x in
+    let looking = outdoors ? [] : Stage.mirrorStands.compactMap { x in
         people.first { abs($0.x(at: now) - x) < 3 && !$0.isWalking(at: now) && !$0.seated }
     }
     for (i, p) in looking.enumerated() {
         drawReflection(ctx, p, now: now, slot: i, of: looking.count)
     }
+    // The bathroom mirror over the sink, at home.
+    if !outdoors && !d.atCasino, let p = people.first(where: { abs($0.x(at: now) - Stage.bathStandX) < 3 && !$0.isWalking(at: now) }) {
+        drawBathReflection(ctx, p, now: now)
+    }
     // Whoever is in the chair sits behind the beam and the glass; everyone else walks in front.
     for p in people where p.seated {
         drawPerson(ctx, p, feet: CGPoint(x: p.x(at: now), y: Stage.floorY), facing: p.facing, now: now)
-    }
-    if !outdoors {
-        drawEmitters(ctx, d: d, now: now)
-        drawBoothFront(ctx, d: d)
     }
     // Players and the dealer stand behind the table; everyone else walks in front of it.
     for p in people where p.atTable && !p.seated {
         drawPerson(ctx, p, feet: CGPoint(x: p.x(at: now), y: Stage.feetY(p)), facing: p.facing, now: now)
     }
-    if d.atCasino { drawTable(ctx, felt: d.felt) }
+    if d.atCasino { drawTable(ctx, felt: d.felt, color: d.custom.felt.color) }
     let asleep = d.lightsOut && !outdoors && !d.atCasino
     if asleep {
         for (p, bed) in zip(d.cast, beds) where p.visible { drawAsleep(ctx, p, bed: bed, now: now) }
@@ -156,8 +177,11 @@ func drawStage(_ ctx: GraphicsContext, size: CGSize, director d: Director, now: 
     let lyingDown = asleep ? d.cast + sleepers(d) : []
     let standing = people.filter { q in !q.seated && !q.atTable && !lyingDown.contains { $0 === q } }
     for p in standing.sorted(by: { $0.height > $1.height }) {
-        drawPerson(ctx, p, feet: CGPoint(x: p.x(at: now), y: Stage.floorY), facing: p.facing, now: now)
+        drawPerson(ctx, p, feet: CGPoint(x: p.x(at: now), y: Stage.floorY - p.liftHeight(at: now)), facing: p.facing, now: now)
     }
+    // The machine's mini saucers fly out over whoever is being changed, beams and all.
+    if !outdoors { drawSaucers(ctx, d: d, now: now) }
+    if let beam = d.teleport { drawTeleport(ctx, x: beam.x, color: beam.color, age: now.timeIntervalSince(beam.t0)) }
     // Anyone changing back outside the machine twinkles while it happens.
     for p in people where !d.beamPeople.contains(where: { $0 === p }) {
         let level = p.alienLevel(at: now)
@@ -191,7 +215,7 @@ func drawStage(_ ctx: GraphicsContext, size: CGSize, director d: Director, now: 
 
     // Screen-space overlays
     if now < d.signUntil { drawSignCard(screen) }
-    if !d.atCasino && !outdoors { drawHUD(screen, d: d, now: now) }
+    if !d.atCasino && !outdoors && d.poker == nil { drawHUD(screen, d: d, now: now) }
     let fade = d.fade(at: now)
     if fade > 0 {
         screen.fill(Path(CGRect(x: 0, y: 0, width: Stage.W, height: Stage.H)), with: .color(.black.opacity(fade)))
@@ -222,10 +246,12 @@ private func drawSky(_ ctx: GraphicsContext) {
 private func drawHouse(_ ctx: GraphicsContext, d: Director, now: Date) {
     drawSky(ctx)
     fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: Stage.H - Stage.floorY), Color(red: 0.45, green: 0.72, blue: 0.35))
+    drawCottage(ctx, d: d, now: now)
 
+    let x0 = Stage.houseX0
     var roof = Path()
-    roof.move(to: CGPoint(x: -10, y: Stage.ceilY))
-    roof.addLine(to: CGPoint(x: Stage.W / 2, y: 70))
+    roof.move(to: CGPoint(x: x0 - 14, y: Stage.ceilY))
+    roof.addLine(to: CGPoint(x: (x0 + Stage.W) / 2, y: 70))
     roof.addLine(to: CGPoint(x: Stage.W + 10, y: Stage.ceilY))
     roof.closeSubpath()
     ctx.fill(roof, with: .color(Color(red: 0.62, green: 0.32, blue: 0.28)))
@@ -237,39 +263,95 @@ private func drawHouse(_ ctx: GraphicsContext, d: Director, now: Date) {
         fill(ctx, CGRect(x: room.x0, y: Stage.floorY - 10, width: r.width, height: 10), Color(white: 0.97))
         ctx.draw(Text(room.name).font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.black.opacity(0.45)),
-                 at: CGPoint(x: room.x0 == 0 ? 340 : (room.x0 + room.x1) / 2, y: Stage.ceilY + 18))
+                 at: CGPoint(x: (room.x0 + room.x1) / 2, y: Stage.ceilY + 18))
     }
-    fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: 14), Color(red: 0.55, green: 0.38, blue: 0.22))
+    fill(ctx, CGRect(x: x0, y: Stage.floorY, width: Stage.W - x0, height: 14), Color(red: 0.55, green: 0.38, blue: 0.22))
 
-    drawBed(ctx, x: beds[0].x, width: beds[0].width, blanket: beds[0].blanket)
     drawBathroom(ctx)
     drawLivingRoom(ctx, doorOpen: now < d.doorOpenUntil)
-    for b in beds.dropFirst() { drawBed(ctx, x: b.x, width: b.width, blanket: b.blanket) }
-    // A teddy bear on Rosie's bed, a plant for Mia, a lamp for Mom
+    for b in beds { drawBed(ctx, x: b.x, width: b.width, blanket: b.blanket) }
+    // A teddy bear on Rosie's bed, a plant for Ava, a lamp for Mom
     ctx.fill(circle(CGPoint(x: 1112, y: Stage.floorY - 56), 7), with: .color(Color(red: 0.70, green: 0.48, blue: 0.28)))
     ctx.fill(circle(CGPoint(x: 1112, y: Stage.floorY - 66), 5), with: .color(Color(red: 0.70, green: 0.48, blue: 0.28)))
     fill(ctx, CGRect(x: 1070, y: Stage.floorY - 34, width: 16, height: 24), Color(red: 0.75, green: 0.40, blue: 0.25), corner: 3)
     for (x, y) in [(-6.0, -50.0), (4.0, -58.0), (10.0, -46.0)] {
         ctx.fill(Path(ellipseIn: CGRect(x: 1078 + x - 7, y: Stage.floorY + y, width: 14, height: 24)), with: .color(Color(red: 0.25, green: 0.60, blue: 0.30)))
     }
-    fill(ctx, CGRect(x: 556, y: Stage.floorY - 108, width: 22, height: 18), Color(red: 1, green: 0.92, blue: 0.6), corner: 3)
-    fill(ctx, CGRect(x: 565, y: Stage.floorY - 90, width: 4, height: 80), .gray)
-
-    drawMirror(ctx)
+    fill(ctx, CGRect(x: 956, y: Stage.floorY - 108, width: 22, height: 18), Color(red: 1, green: 0.92, blue: 0.6), corner: 3)
+    fill(ctx, CGRect(x: 965, y: Stage.floorY - 90, width: 4, height: 80), .gray)
 
     // Partitions with doorways
     for room in Stage.rooms.dropFirst() {
         fill(ctx, CGRect(x: room.x0 - 5, y: Stage.ceilY, width: 10, height: Stage.doorwayTop - Stage.ceilY), Color(red: 0.72, green: 0.70, blue: 0.66))
     }
-    ctx.stroke(Path(CGRect(x: 0, y: Stage.ceilY, width: Stage.W, height: Stage.floorY - Stage.ceilY)),
+    ctx.stroke(Path(CGRect(x: x0, y: Stage.ceilY, width: Stage.W - x0, height: Stage.floorY - Stage.ceilY)),
                with: .color(Color(red: 0.35, green: 0.33, blue: 0.30)), lineWidth: 8)
+    // The back door out to the yard and the cottage.
+    let back = CGRect(x: x0 - 6, y: Stage.floorY - 150, width: 12, height: 150)
+    fill(ctx, back, Color(red: 0.45, green: 0.28, blue: 0.18), corner: 2)
+    ctx.fill(circle(CGPoint(x: x0 + 2, y: back.midY), 3), with: .color(.yellow))
 }
 
-/// Mom's, Ava's, Mia's and Rosie's beds, in cast order.
+/// The cottage in the backyard, cut away: the Roswell of Poker stands against its left wall with the mirror across from it.
+/// Once the family has made it their casino it gets a neon sign, string lights and a red carpet.
+private func drawCottage(_ ctx: GraphicsContext, d: Director, now: Date) {
+    let t = now.timeIntervalSinceReferenceDate
+    let x1 = Stage.cottageX1, top = 230.0
+    let casino = d.casinoBuilt
+    // A stepping-stone path across the yard to the house's back door.
+    for x in stride(from: x1 + 6, to: Stage.houseX0, by: 14) {
+        ctx.fill(Path(ellipseIn: CGRect(x: x, y: Stage.floorY + 3, width: 10, height: 5)), with: .color(Color(white: 0.75)))
+    }
+    var roof = Path()
+    roof.move(to: CGPoint(x: -12, y: top))
+    roof.addLine(to: CGPoint(x: x1 / 2, y: 140))
+    roof.addLine(to: CGPoint(x: x1 + 12, y: top))
+    roof.closeSubpath()
+    ctx.fill(roof, with: .color(Color(red: 0.36, green: 0.42, blue: 0.52)))
+    ctx.stroke(roof, with: .color(Color(red: 0.22, green: 0.26, blue: 0.34)), lineWidth: 4)
+    let inside = CGRect(x: 0, y: top, width: x1, height: Stage.floorY - top)
+    if casino {
+        ctx.fill(Path(inside), with: .linearGradient(Gradient(colors: [Color(red: 0.16, green: 0.06, blue: 0.22), Color(red: 0.32, green: 0.10, blue: 0.30)]),
+                                                     startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: Stage.floorY)))
+        for i in 0..<16 {
+            let k = Double(i)
+            let star = CGPoint(x: 10 + (k * 0.618).truncatingRemainder(dividingBy: 1) * (x1 - 20), y: top + 30 + (k * 0.377).truncatingRemainder(dividingBy: 1) * 90)
+            ctx.fill(circle(star, 1 + 0.6 * sin(t * 2 + k)), with: .color(.white.opacity(0.6)))
+        }
+    } else {
+        fill(ctx, inside, Color(red: 0.93, green: 0.88, blue: 0.78))
+        for x in stride(from: 30.0, to: x1, by: 50) {
+            fill(ctx, CGRect(x: x, y: top, width: 4, height: inside.height), Color(red: 0.86, green: 0.79, blue: 0.66))
+        }
+    }
+    fill(ctx, CGRect(x: 0, y: Stage.floorY, width: x1, height: 14), casino ? d.custom.carpet.base : Color(red: 0.55, green: 0.38, blue: 0.22))
+    drawMirror(ctx)
+    if casino {
+        // Neon sign and chasing string lights.
+        let sign = CGRect(x: 150, y: top + 8, width: 290, height: 30)
+        fill(ctx, sign, Color(red: 0.06, green: 0.02, blue: 0.08), corner: 8)
+        let pulse = 0.75 + 0.25 * sin(t * 3)
+        ctx.stroke(Path(roundedRect: sign, cornerRadius: 8), with: .color(d.custom.neon.color.opacity(pulse)), lineWidth: 2.5)
+        ctx.draw(Text(CasinoGame.casinoName.uppercased()).font(.system(size: 15, weight: .black, design: .rounded)).foregroundStyle(casinoGold),
+                 at: CGPoint(x: sign.midX, y: sign.midY))
+        for i in 0..<18 {
+            let on = (Int(t * 6) + i) % 3 == 0
+            ctx.fill(circle(CGPoint(x: 12 + Double(i) * 29, y: top + 4 + 6 * sin(Double(i) * 0.9)), 3),
+                     with: .color(on ? d.custom.neon.color : [Color.red, .green, .blue][i % 3].opacity(0.7)))
+        }
+    } else {
+        ctx.draw(Text("Cottage").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(Color.black.opacity(0.45)),
+                 at: CGPoint(x: 300, y: top + 18))
+    }
+    // The cottage's open doorway on the yard side.
+    fill(ctx, CGRect(x: x1 - 6, y: top, width: 12, height: Stage.doorwayTop - top), Color(red: 0.30, green: 0.30, blue: 0.36))
+    ctx.stroke(Path(CGRect(x: 0, y: top, width: x1, height: Stage.floorY - top)), with: .color(Color(red: 0.25, green: 0.25, blue: 0.30)), lineWidth: 6)
+}
+
+/// Mom's, Ava's and Rosie's beds, in cast order.
 private let beds: [(x: Double, width: Double, blanket: Color)] = [
-    (452, 100, Color(red: 0.95, green: 0.50, blue: 0.45)),
-    (870, 82, Color(red: 0.25, green: 0.60, blue: 0.60)),
-    (985, 82, Color(red: 0.55, green: 0.40, blue: 0.80)),
+    (870, 82, Color(red: 0.95, green: 0.50, blue: 0.45)),
+    (985, 82, Color(red: 0.25, green: 0.60, blue: 0.60)),
     (1100, 72, Color(red: 0.98, green: 0.55, blue: 0.75)),
 ]
 
@@ -337,7 +419,9 @@ private func drawBathroom(_ ctx: GraphicsContext) {
     fill(ctx, CGRect(x: x0 + 60, y: floor - 26, width: 13, height: 16), .white, corner: 2)
     fill(ctx, CGRect(x: x0 + 89, y: floor - 60, width: 8, height: 50), .white)
     fill(ctx, CGRect(x: x0 + 82, y: floor - 70, width: 22, height: 12), .white, corner: 5)
-    fill(ctx, CGRect(x: x0 + 84, y: floor - 125, width: 20, height: 34), Color(red: 0.80, green: 0.92, blue: 1), corner: 3)
+    let bm = Stage.bathMirror
+    fill(ctx, bm.insetBy(dx: -3, dy: -3), Color(white: 0.85), corner: 5)
+    fill(ctx, bm, Color(red: 0.80, green: 0.92, blue: 1), corner: 4)
     // Shampoo shelf
     fill(ctx, CGRect(x: x0 + 56, y: floor - 150, width: 46, height: 3), Color(white: 0.6))
     for (i, c) in [Color.purple, .pink, .orange, .teal, .yellow].enumerated() {
@@ -361,6 +445,23 @@ private func drawLivingRoom(_ ctx: GraphicsContext, doorOpen: Bool) {
         fill(ctx, door, Color(red: 0.45, green: 0.28, blue: 0.18))
         ctx.fill(Path(ellipseIn: CGRect(x: door.maxX - 14, y: door.midY, width: 8, height: 8)), with: .color(.yellow))
     }
+}
+
+/// Her face and shoulders in the little mirror over the bathroom sink.
+private func drawBathReflection(_ ctx: GraphicsContext, _ p: Person, now: Date) {
+    let m = Stage.bathMirror
+    var r = ctx
+    r.clip(to: Path(roundedRect: m, cornerRadius: 4))
+    let scale = 0.55
+    let pose = Pose(p, feet: CGPoint(x: 0, y: Stage.floorY), facing: 0, now: now)
+    let headUp = Stage.floorY - pose.head.y
+    r.translateBy(x: m.midX, y: m.midY - 4 + headUp * scale)
+    r.scaleBy(x: scale, y: scale)
+    drawPerson(r, p, feet: .zero, facing: 0, now: now, reflection: true)
+    var sheen = Path()
+    sheen.move(to: CGPoint(x: m.minX + 4, y: m.minY + 14))
+    sheen.addLine(to: CGPoint(x: m.minX + 12, y: m.minY + 5))
+    ctx.stroke(sheen, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: 2, lineCap: .round))
 }
 
 private func drawMirror(_ ctx: GraphicsContext) {
@@ -388,113 +489,96 @@ private func drawReflection(_ ctx: GraphicsContext, _ p: Person, now: Date, slot
     ctx.stroke(sheen, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: 4, lineCap: .round))
 }
 
-// MARK: Booth
+// MARK: The Roswell of Poker and its mini saucers
 
-private let boothFrame = Color(red: 0.16, green: 0.18, blue: 0.24)
 private let glow = Color(red: 0.45, green: 1.0, blue: 0.45)
-private let beamGreen = Color(red: 0.40, green: 1.0, blue: 0.45)
 
-private var boothInner: CGRect {
-    let b = Stage.booth
-    return CGRect(x: b.minX + 10, y: b.minY + 30, width: b.width - 20, height: b.height - 30)
-}
-
-private func drawBoothBack(_ ctx: GraphicsContext, d: Director, now: Date) {
-    let b = Stage.booth
-    let inner = boothInner
+/// The video poker cabinet: a green neon topper with the saucer hatch, the screen, the buttons and the coin tray.
+private func drawMachine(_ ctx: GraphicsContext, d: Director, now: Date) {
+    let m = Stage.machine
     let t = now.timeIntervalSinceReferenceDate
-
-    // Neon sign on the wall above
-    let sign = CGRect(x: b.minX + 14, y: b.minY - 40, width: b.width - 28, height: 30)
-    fill(ctx, sign, Color(red: 0.08, green: 0.10, blue: 0.14), corner: 6)
-    let pulse = 0.75 + 0.25 * sin(t * 3)
-    ctx.stroke(Path(roundedRect: sign, cornerRadius: 6), with: .color(glow.opacity(pulse)), lineWidth: 2.5)
-    ctx.draw(Text("ROSWELL TRANSFORMATION").font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(glow.opacity(pulse)),
-             at: CGPoint(x: sign.midX, y: sign.midY))
-
-    fill(ctx, b, boothFrame, corner: 10)
-    // A dark, starry chamber with green-lit wall panels
-    ctx.fill(Path(inner), with: .linearGradient(Gradient(colors: [Color(red: 0.10, green: 0.10, blue: 0.22), Color(red: 0.18, green: 0.22, blue: 0.30)]),
-                                                startPoint: CGPoint(x: 0, y: inner.minY), endPoint: CGPoint(x: 0, y: inner.maxY)))
-    for i in 0..<18 {
-        let k = Double(i)
-        let star = CGPoint(x: inner.minX + inner.width * ((k * 0.618).truncatingRemainder(dividingBy: 1)),
-                           y: inner.minY + 8 + (inner.height - 70) * ((k * 0.377).truncatingRemainder(dividingBy: 1)))
-        ctx.fill(circle(star, 1 + 0.6 * sin(t * 2 + k)), with: .color(.white.opacity(0.55)))
+    let skin = d.custom.skin
+    let body = skin.cabinet
+    let glow = skin.trim
+    // Cabinet and base
+    fill(ctx, CGRect(x: m.minX - 4, y: m.maxY - 22, width: m.width + 8, height: 22), Color(red: 0.12, green: 0.05, blue: 0.20), corner: 4)
+    fill(ctx, CGRect(x: m.minX, y: m.minY + 40, width: m.width, height: m.height - 60), body, corner: 8)
+    // Topper with the hatch the saucers fly out of; it glows while one is out.
+    let topper = CGRect(x: m.minX - 6, y: m.minY, width: m.width + 12, height: 42)
+    fill(ctx, topper, skin == .chrome ? Color(red: 0.25, green: 0.28, blue: 0.33) : Color(red: 0.08, green: 0.04, blue: 0.14), corner: 10)
+    if skin == .chrome || skin == .gold {
+        // A polished sheen down the cabinet.
+        fill(ctx, CGRect(x: m.minX + 6, y: m.minY + 44, width: 8, height: m.height - 70), .white.opacity(0.35), corner: 4)
+    } else if skin == .galaxy {
+        for i in 0..<10 {
+            let k = Double(i)
+            ctx.fill(circle(CGPoint(x: m.minX + 6 + (k * 0.618).truncatingRemainder(dividingBy: 1) * (m.width - 12),
+                                    y: m.minY + 120 + (k * 0.377).truncatingRemainder(dividingBy: 1) * 60), 1.2 + 0.5 * sin(t * 3 + k)),
+                     with: .color(.white.opacity(0.8)))
+        }
     }
-    for col in 0..<Int(inner.width / 45) {
-        let panel = CGRect(x: inner.minX + 6 + Double(col) * 45, y: inner.maxY - 62, width: 36, height: 50)
-        ctx.stroke(Path(roundedRect: panel, cornerRadius: 4), with: .color(glow.opacity(0.25)), lineWidth: 1)
-        ctx.fill(circle(CGPoint(x: panel.midX, y: panel.minY + 8), 2.5), with: .color(glow.opacity(0.4 + 0.4 * sin(t * 3 + Double(col)))))
+    let pulse = 0.7 + 0.3 * sin(t * 3)
+    ctx.stroke(Path(roundedRect: topper, cornerRadius: 10), with: .color(glow.opacity(pulse)), lineWidth: 2)
+    ctx.draw(Text("ROSWELL").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(glow.opacity(pulse)),
+             at: CGPoint(x: topper.midX, y: topper.minY + 13))
+    ctx.draw(Text("OF POKER").font(.system(size: 9, weight: .black, design: .rounded)).foregroundStyle(casinoGold),
+             at: CGPoint(x: topper.midX, y: topper.minY + 28))
+    let open = !d.beamPeople.isEmpty
+    let hatch = CGRect(x: m.midX - 22, y: m.minY - 8, width: 44, height: 10)
+    fill(ctx, hatch, open ? glow.opacity(0.85) : Color(white: 0.55), corner: 4)
+    // The screen, with a little alien face and whatever it's saying.
+    let scr = CGRect(x: m.minX + 8, y: m.minY + 52, width: m.width - 16, height: 58)
+    ctx.fill(Path(roundedRect: scr, cornerRadius: 4), with: .linearGradient(Gradient(colors: [skin.screenTop, skin.screenBottom]),
+                                                                             startPoint: CGPoint(x: 0, y: scr.minY), endPoint: CGPoint(x: 0, y: scr.maxY)))
+    let face = CGPoint(x: scr.midX, y: scr.minY + 20)
+    ctx.fill(headShape(face, hr: 9, alien: 1).path, with: .color(Person.alienSkin.color))
+    drawAlienEyes(ctx, head: face, hr: 9, alien: 1)
+    ctx.draw(Text(d.screenText(now)).font(.system(size: 8, weight: .heavy, design: .monospaced)).foregroundStyle(.green),
+             at: CGPoint(x: scr.midX, y: scr.maxY - 9))
+    // Five hold buttons and the big deal button
+    for i in 0..<5 {
+        let lit = d.poker != nil && (Int(t * 4) + i) % 5 == 0
+        fill(ctx, CGRect(x: m.minX + 7 + Double(i) * 11.5, y: m.minY + 118, width: 9, height: 7), lit ? .yellow : Color(red: 0.9, green: 0.75, blue: 0.2).opacity(0.6), corner: 2)
     }
-    fill(ctx, CGRect(x: inner.minX, y: inner.maxY - 8, width: inner.width, height: 8), Color(white: 0.35))
-    // A glowing landing ring under each chair
-    for x in Stage.seatX {
-        ctx.stroke(Path(ellipseIn: CGRect(x: x - 30, y: inner.maxY - 9, width: 60, height: 8)), with: .color(glow.opacity(0.6)), lineWidth: 1.5)
-    }
-    // Header with the status screen
-    let head = CGRect(x: b.minX, y: b.minY, width: b.width, height: 30)
-    fill(ctx, head, Color(red: 0.08, green: 0.10, blue: 0.14), corner: 8)
-    ctx.draw(Text("ROSWELL-O-MATIC").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(glow),
-             at: CGPoint(x: head.minX + 14, y: head.midY), anchor: .leading)
-    let scr = CGRect(x: head.maxX - 104, y: head.minY + 6, width: 94, height: 18)
-    fill(ctx, scr, .black, corner: 3)
-    ctx.draw(Text(d.screenText(now)).font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(.green),
-             at: CGPoint(x: scr.midX, y: scr.midY))
-
-    // Three silver chairs facing right
-    let chair = Color(red: 0.72, green: 0.75, blue: 0.82)
-    let seatY = Stage.floorY - 30
-    for x in Stage.seatX {
-        fill(ctx, CGRect(x: x - 36, y: seatY - 70, width: 10, height: 78), chair, corner: 5)
-        fill(ctx, CGRect(x: x - 27, y: seatY, width: 56, height: 8), chair, corner: 4)
-        fill(ctx, CGRect(x: x - 3, y: seatY + 8, width: 6, height: 17), Color(white: 0.5))
-        fill(ctx, CGRect(x: x - 20, y: Stage.floorY - 6, width: 40, height: 5), Color(white: 0.4), corner: 2)
-    }
-
-    // The glowing green button on its post
-    let bt = Stage.button
-    fill(ctx, CGRect(x: bt.x - 5, y: bt.y + 4, width: 10, height: Stage.floorY - bt.y - 4), Color(white: 0.45), corner: 2)
-    fill(ctx, CGRect(x: bt.x - 11, y: bt.y - 3, width: 22, height: 9), Color(white: 0.3), corner: 3)
-    let pressed = now.timeIntervalSince(d.pressT0)
-    let lit = d.beamPeople.isEmpty || (pressed >= 0 && pressed < 0.4)
-    let gl = lit ? 0.55 + 0.45 * sin(t * 4) : 0.15
-    ctx.fill(circle(bt, 16), with: .radialGradient(Gradient(colors: [beamGreen.opacity(gl * 0.7), .clear]), center: bt, startRadius: 3, endRadius: 16))
-    ctx.fill(circle(bt, 6.5), with: .color(lit ? Color(red: 0.3, green: 1, blue: 0.35) : Color(red: 0.1, green: 0.35, blue: 0.12)))
-    ctx.fill(circle(CGPoint(x: bt.x - 2, y: bt.y - 2), 2), with: .color(.white.opacity(0.7)))
+    fill(ctx, CGRect(x: m.minX + 18, y: m.minY + 132, width: 34, height: 9), Color(red: 0.2, green: 0.8, blue: 0.3), corner: 3)
+    fill(ctx, CGRect(x: m.minX + 12, y: m.maxY - 46, width: m.width - 24, height: 14), Color(white: 0.25), corner: 3)
+    ctx.fill(circle(CGPoint(x: m.maxX - 12, y: m.minY + 160), 3), with: .color(.red))
 }
 
-/// Where a chair's beam emitter is: resting up under the header, or lowered just above the sitter's head.
-private func emitterGeometry(_ d: Director, seat x: Double, now: Date) -> (center: CGPoint, r: Double, sitter: Person?) {
-    let rest = CGPoint(x: x, y: boothInner.minY + 18)
-    guard let p = d.beamPeople.first(where: { abs($0.x(at: now) - x) < 2 }) else { return (rest, 26, nil) }
+/// Where someone's mini saucer is: flying out of the machine's hatch, hovering just above her head, or flying home.
+private func saucerGeometry(_ d: Director, _ p: Person, now: Date) -> (center: CGPoint, r: Double) {
+    let x = p.x(at: now)
     let pose = Pose(p, feet: CGPoint(x: x, y: Stage.floorY), facing: p.facing, now: now)
-    // Stop above where the alien head will finish growing, so it never pokes into the emitter.
+    // Stop above where the alien head will finish growing, so it never pokes into the saucer.
     let target = CGPoint(x: x, y: pose.head.y - pose.hr * 2.1)
-    let t = now.timeIntervalSince(d.boothT0)
-    let (phase, u) = BoothRun.phase(t)
+    let home = Stage.saucerHome
+    let (phase, u) = BoothRun.phase(now.timeIntervalSince(d.boothT0), flight: d.saucerFlight)
     func ease(_ u: Double) -> Double { u * u * (3 - 2 * u) }
-    let down: Double = switch phase {
+    let out: Double = switch phase {
     case .lowering: ease(u)
     case .lifting: 1 - ease(u)
     case .done: 0
     default: 1
     }
-    let c = CGPoint(x: x, y: rest.y + (max(rest.y, target.y) - rest.y) * down)
-    return (c, 26 + (max(26, pose.hr * 2.2) - 26) * down, p)
+    // Fly up out of the hatch, then arc over to her.
+    let arc = sin(out * .pi) * 40
+    let c = CGPoint(x: home.x + (target.x - home.x) * out, y: home.y + (target.y - home.y) * out - arc)
+    let r = 14 + (max(26, pose.hr * 2.2) - 14) * out
+    return (c, r)
 }
 
-private func drawEmitters(_ ctx: GraphicsContext, d: Director, now: Date) {
-    for x in Stage.seatX { drawEmitter(ctx, d: d, seat: x, now: now) }
+private func drawSaucers(_ ctx: GraphicsContext, d: Director, now: Date) {
+    guard now.timeIntervalSince(d.boothT0) < BoothRun.total(flight: d.saucerFlight) else { return }
+    for p in d.beamPeople { drawSaucer(ctx, d: d, p, now: now) }
 }
 
-/// One chair's flying-saucer emitter, and the green beam it shines down over whoever is sitting there.
-private func drawEmitter(_ ctx: GraphicsContext, d: Director, seat: Double, now: Date) {
-    let (c, r, sitter) = emitterGeometry(d, seat: seat, now: now)
+/// One mini saucer and the beam it shines down over the person it's changing.
+private func drawSaucer(_ ctx: GraphicsContext, d: Director, _ p: Person, now: Date) {
+    let (c, r) = saucerGeometry(d, p, now: now)
     // The beam glows the colour she's turning.
-    let beamGreen = (sitter?.alienColor ?? .green).beam.color
+    let beamGreen = p.alienColor.beam.color
     let tt = now.timeIntervalSinceReferenceDate
-    let (phase, u) = sitter == nil ? (BoothRun.Phase.done, 1.0) : BoothRun.phase(now.timeIntervalSince(d.boothT0))
+    let (phase, u) = BoothRun.phase(now.timeIntervalSince(d.boothT0), flight: d.saucerFlight)
     let floor = Stage.floorY - 4
 
     // How bright the beam is: it builds while charging, blazes, then fades through the sparkles.
@@ -511,7 +595,7 @@ private func drawEmitter(_ ctx: GraphicsContext, d: Director, seat: Double, now:
         cone.addLine(to: CGPoint(x: c.x + r * 1.25, y: floor))
         cone.addLine(to: CGPoint(x: c.x - r * 1.25, y: floor))
         cone.closeSubpath()
-        ctx.fill(cone, with: .linearGradient(Gradient(colors: [beamGreen.opacity(beam * 0.75), beamGreen.opacity(beam * 0.25)]),
+        ctx.fill(cone, with: .linearGradient(Gradient(colors: [beamGreen.opacity(beam * 0.6), beamGreen.opacity(beam * 0.2)]),
                                              startPoint: CGPoint(x: c.x, y: c.y), endPoint: CGPoint(x: c.x, y: floor)))
         // Scanning rings slide down the beam.
         var inside = ctx
@@ -525,7 +609,7 @@ private func drawEmitter(_ ctx: GraphicsContext, d: Director, seat: Double, now:
         }
     }
     if phase == .beaming || phase == .sparkling {
-        // Sparkles rising around the sitter
+        // Sparkles rising around her
         let fade = phase == .sparkling ? 1 - u : 1
         for i in 0..<14 {
             let k = Double(i)
@@ -540,7 +624,7 @@ private func drawEmitter(_ ctx: GraphicsContext, d: Director, seat: Double, now:
         }
     }
     if phase == .cooling {
-        // A puff of cool mist drifts off the emitter.
+        // A puff of cool mist drifts off the saucer.
         let fade = min(1, u * 5, (1 - u) * 5)
         for i in 0..<6 {
             let k = Double(i)
@@ -550,61 +634,86 @@ private func drawEmitter(_ ctx: GraphicsContext, d: Director, seat: Double, now:
         }
     }
 
-    // Telescoping arm from the ceiling
-    let top = boothInner.minY
-    fill(ctx, CGRect(x: c.x - 4, y: top, width: 8, height: c.y - top), Color(white: 0.55))
-    fill(ctx, CGRect(x: c.x - 7, y: top, width: 14, height: 10), Color(white: 0.4), corner: 2)
-
-    // The saucer-shaped emitter: a silver disc, a glass bubble, and a ring of blinking lights.
+    // The saucer: a silver disc, a glass bubble, and a ring of blinking lights.
     let charged: Double = switch phase {
     case .charging: u
     case .beaming, .sparkling: 1
     case .cooling: 1 - u
-    default: 0
+    default: 0.2
     }
-    ctx.fill(Path(ellipseIn: CGRect(x: c.x - r * 0.45, y: c.y - r * 0.42, width: r * 0.9, height: r * 0.6)),
+    let bob = sin(tt * 4) * 1.5
+    let c2 = CGPoint(x: c.x, y: c.y + bob)
+    ctx.fill(Path(ellipseIn: CGRect(x: c2.x - r * 0.45, y: c2.y - r * 0.42, width: r * 0.9, height: r * 0.6)),
              with: .color(Color(red: 0.7, green: 0.95, blue: 0.75).opacity(0.75)))
-    let disc = CGRect(x: c.x - r, y: c.y - r * 0.18, width: r * 2, height: r * 0.36)
+    let disc = CGRect(x: c2.x - r, y: c2.y - r * 0.18, width: r * 2, height: r * 0.36)
     ctx.fill(Path(ellipseIn: disc), with: .linearGradient(Gradient(colors: [Color(white: 0.85), Color(white: 0.45)]),
                                                          startPoint: CGPoint(x: 0, y: disc.minY), endPoint: CGPoint(x: 0, y: disc.maxY)))
     ctx.stroke(Path(ellipseIn: disc), with: .color(Color(white: 0.3)), lineWidth: 1)
     for i in 0..<5 {
         let k = Double(i)
         let blink = 0.3 + 0.7 * charged * (0.5 + 0.5 * sin(tt * 10 + k * 1.3))
-        ctx.fill(circle(CGPoint(x: c.x + (k - 2) * r * 0.36, y: c.y + r * 0.04), max(1.5, r * 0.07)),
-                 with: .color(glow.opacity(sitter == nil ? 0.45 : blink)))
+        ctx.fill(circle(CGPoint(x: c2.x + (k - 2) * r * 0.36, y: c2.y + r * 0.04), max(1.5, r * 0.07)), with: .color(glow.opacity(blink)))
     }
-    if charged > 0 {
-        ctx.fill(Path(ellipseIn: CGRect(x: c.x - r * 0.5, y: c.y + r * 0.08, width: r, height: r * 0.25)),
-                 with: .radialGradient(Gradient(colors: [beamGreen.opacity(charged), .clear]), center: CGPoint(x: c.x, y: c.y + r * 0.2),
+    if charged > 0.2 {
+        ctx.fill(Path(ellipseIn: CGRect(x: c2.x - r * 0.5, y: c2.y + r * 0.08, width: r, height: r * 0.25)),
+                 with: .radialGradient(Gradient(colors: [beamGreen.opacity(charged), .clear]), center: CGPoint(x: c2.x, y: c2.y + r * 0.2),
                                        startRadius: 1, endRadius: r * 0.5))
     }
 }
 
-private func drawBoothFront(_ ctx: GraphicsContext, d: Director) {
-    let b = Stage.booth
-    let inner = boothInner
-    let glass = Color(red: 0.70, green: 0.88, blue: 1)
-    if d.boothClosed {
-        fill(ctx, inner, glass.opacity(0.12), corner: 3)
-        for k in [0.15, 0.22] {
-            var sheen = Path()
-            sheen.move(to: CGPoint(x: inner.minX + inner.width * k, y: inner.minY + 20))
-            sheen.addLine(to: CGPoint(x: inner.minX + inner.width * (k + 0.08), y: inner.minY + 4))
-            ctx.stroke(sheen, with: .color(.white.opacity(0.5)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-        }
-    } else {
-        var door = Path()
-        door.move(to: CGPoint(x: b.maxX, y: inner.minY))
-        door.addLine(to: CGPoint(x: b.maxX + 26, y: inner.minY + 10))
-        door.addLine(to: CGPoint(x: b.maxX + 26, y: inner.maxY - 6))
-        door.addLine(to: CGPoint(x: b.maxX, y: inner.maxY))
-        door.closeSubpath()
-        ctx.fill(door, with: .color(glass.opacity(0.4)))
-        ctx.stroke(door, with: .color(Color(white: 0.6)), lineWidth: 2)
+/// A teleport beam: a column of light from the sky that someone vanishes into or appears out of.
+private func drawTeleport(_ ctx: GraphicsContext, x: Double, color: Color, age: Double) {
+    guard age >= 0 && age < 3 else { return }
+    let a = min(age / 0.4, 1, (3 - age) / 0.6)
+    let rect = CGRect(x: x - 34, y: 0, width: 68, height: Stage.floorY)
+    ctx.fill(Path(rect), with: .linearGradient(Gradient(colors: [color.opacity(0.15 * a), color.opacity(0.55 * a)]),
+                                              startPoint: CGPoint(x: x, y: 0), endPoint: CGPoint(x: x, y: Stage.floorY)))
+    for i in 0..<18 {
+        let k = Double(i)
+        let rise = (age * 0.8 + k / 18).truncatingRemainder(dividingBy: 1)
+        let pt = CGPoint(x: x + sin(k * 2.7 + age * 3) * 26, y: Stage.floorY - rise * 260)
+        ctx.fill(circle(pt, 1.5 + (k.truncatingRemainder(dividingBy: 3))), with: .color(.white.opacity(0.85 * a * sin(rise * .pi))))
     }
-    fill(ctx, CGRect(x: b.minX, y: b.minY + 20, width: 10, height: b.height - 20), boothFrame)
-    fill(ctx, CGRect(x: b.maxX - 10, y: b.minY + 20, width: 10, height: b.height - 20), boothFrame)
+    ctx.fill(Path(ellipseIn: CGRect(x: x - 42, y: Stage.floorY - 6, width: 84, height: 12)), with: .color(color.opacity(0.5 * a)))
+}
+
+// MARK: A kid's bedroom across town
+
+/// The bedroom of a kid the Roswell of Poker was downloaded to: the computer on the desk, a bed, a window.
+private func drawKidRoom(_ ctx: GraphicsContext, kid: Int, now: Date) {
+    let walls = [Color(red: 0.80, green: 0.90, blue: 0.98), Color(red: 0.98, green: 0.88, blue: 0.80),
+                 Color(red: 0.88, green: 0.95, blue: 0.82), Color(red: 0.95, green: 0.85, blue: 0.95)]
+    let blankets = [Color(red: 0.30, green: 0.50, blue: 0.90), Color(red: 0.95, green: 0.45, blue: 0.35),
+                    Color(red: 0.35, green: 0.70, blue: 0.40), Color(red: 0.75, green: 0.45, blue: 0.85)]
+    let t = now.timeIntervalSinceReferenceDate
+    fill(ctx, CGRect(x: 0, y: 0, width: Stage.W, height: Stage.floorY), walls[kid % walls.count])
+    fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: Stage.H - Stage.floorY), Color(red: 0.62, green: 0.45, blue: 0.30))
+    fill(ctx, CGRect(x: 0, y: Stage.floorY - 12, width: Stage.W, height: 12), Color(white: 0.96))
+    // Window with an evening sky
+    let win = CGRect(x: 160, y: 160, width: 170, height: 140)
+    ctx.fill(Path(win), with: .linearGradient(Gradient(colors: [Color(red: 0.15, green: 0.18, blue: 0.45), Color(red: 0.95, green: 0.55, blue: 0.40)]),
+                                             startPoint: CGPoint(x: 0, y: win.minY), endPoint: CGPoint(x: 0, y: win.maxY)))
+    ctx.stroke(Path(win), with: .color(.white), lineWidth: 8)
+    fill(ctx, CGRect(x: win.midX - 3, y: win.minY, width: 6, height: win.height), .white)
+    // Bed
+    drawBed(ctx, x: 860, width: 190, blanket: blankets[kid % blankets.count])
+    // Posters
+    fill(ctx, CGRect(x: 420, y: 170, width: 70, height: 90), Color(red: 0.95, green: 0.80, blue: 0.25), corner: 3)
+    ctx.draw(Text("⭐️").font(.system(size: 30)), at: CGPoint(x: 455, y: 215))
+    // Desk and computer
+    let deskX = Stage.kidDeskX
+    fill(ctx, CGRect(x: deskX - 80, y: Stage.floorY - 78, width: 160, height: 10), Color(red: 0.55, green: 0.38, blue: 0.22), corner: 2)
+    for x in [deskX - 74, deskX + 66] { fill(ctx, CGRect(x: x, y: Stage.floorY - 68, width: 8, height: 68), Color(red: 0.45, green: 0.30, blue: 0.18)) }
+    let monitor = CGRect(x: deskX - 46, y: Stage.floorY - 150, width: 92, height: 62)
+    fill(ctx, monitor.insetBy(dx: -5, dy: -5), Color(white: 0.2), corner: 6)
+    fill(ctx, monitor, Color(red: 0.10, green: 0.04, blue: 0.24), corner: 3)
+    let face = CGPoint(x: monitor.midX, y: monitor.minY + 22)
+    ctx.fill(headShape(face, hr: 11, alien: 1).path, with: .color(Person.alienSkin.color))
+    drawAlienEyes(ctx, head: face, hr: 11, alien: 1)
+    ctx.draw(Text("ROSWELL OF POKER").font(.system(size: 7, weight: .black, design: .rounded)).foregroundStyle(glow.opacity(0.7 + 0.3 * sin(t * 3))),
+             at: CGPoint(x: monitor.midX, y: monitor.maxY - 9))
+    fill(ctx, CGRect(x: deskX - 8, y: Stage.floorY - 88, width: 16, height: 10), Color(white: 0.3))
+    fill(ctx, CGRect(x: deskX - 30, y: Stage.floorY - 84, width: 60, height: 6), Color(white: 0.35), corner: 2)
 }
 
 // MARK: Overlays
@@ -663,16 +772,16 @@ private func drawSpeech(_ ctx: GraphicsContext, _ p: Person, now: Date, cam: CGR
     return box
 }
 
-/// The booth's instructions, drawn over whatever the camera shows.
+/// The rules card on the side of the Roswell of Poker, drawn over whatever the camera shows.
 private func drawSignCard(_ ctx: GraphicsContext) {
     let card = CGRect(x: 330, y: 30, width: 540, height: 200)
     fill(ctx, card.offsetBy(dx: 5, dy: 6), .black.opacity(0.25), corner: 14)
-    fill(ctx, card, Color(red: 0.10, green: 0.14, blue: 0.18), corner: 14)
+    fill(ctx, card, Color(red: 0.10, green: 0.06, blue: 0.20), corner: 14)
     ctx.stroke(Path(roundedRect: card, cornerRadius: 14), with: .color(glow), lineWidth: 3)
-    ctx.draw(Text("ROSWELL TRANSFORMATION MACHINE").font(.system(size: 24, weight: .black, design: .rounded)).foregroundStyle(glow),
+    ctx.draw(Text("THE ROSWELL OF POKER").font(.system(size: 24, weight: .black, design: .rounded)).foregroundStyle(glow),
              at: CGPoint(x: card.midX, y: card.minY + 30))
-    let steps = ["1. Up to 3 people: sit in the chairs", "2. Press the glowing green button", "3. The emitters lower and charge up",
-                 "4. One minute in the green beam", "5. Sparkles set the change", "6. Enjoy being a Roswell alien!"]
+    let steps = ["1. 200 free credits — no coins needed", "2. Nine games of 20 hands each", "3. Games 1–4: Double Down Stud",
+                 "4. Games 5–9: Pick'em", "5. Bet the max 5 on every hand", "6. Reach game 10 for a surprise!"]
     for (i, s) in steps.enumerated() {
         ctx.draw(Text(s).font(.system(size: 17, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.92)),
                  at: CGPoint(x: card.minX + 40, y: card.minY + 62 + Double(i) * 23), anchor: .leading)
@@ -684,7 +793,7 @@ private func drawSignCard(_ ctx: GraphicsContext) {
 
 /// Who is still human, top right.
 private func drawHUD(_ ctx: GraphicsContext, d: Director, now: Date) {
-    guard d.cast.contains(where: \.alien) || !d.beamPeople.isEmpty else { return }
+    guard d.cast.contains(where: \.alien) || !d.beamPeople.isEmpty, !d.lightsOut else { return }
     for (i, p) in d.cast.enumerated() {
         let r = CGRect(x: Stage.W - 150, y: 12 + Double(i) * 30, width: 138, height: 25)
         fill(ctx, r, .black.opacity(0.55), corner: 12.5)
@@ -807,6 +916,113 @@ private func shopDoor(_ ctx: GraphicsContext, x: Double, color: Color) {
     fill(ctx, CGRect(x: door.midX - 1.5, y: door.minY, width: 3, height: door.height), Color(white: 0.4))
 }
 
+// MARK: Cosmic Customs
+
+/// Around the corner from the bank: Cosmic Customs, a purple storefront with a saucer on the roof.
+private func drawCustoms(_ ctx: GraphicsContext, now: Date, doorOpen: Bool) {
+    let t = now.timeIntervalSinceReferenceDate
+    let floor = Stage.floorY
+    drawSky(ctx)
+    fill(ctx, CGRect(x: 0, y: floor, width: Stage.W, height: 24), Color(white: 0.80))
+    for x in stride(from: 0.0, to: Stage.W, by: 50) { fill(ctx, CGRect(x: x, y: floor, width: 1.5, height: 24), Color(white: 0.70)) }
+    fill(ctx, CGRect(x: 0, y: floor + 24, width: Stage.W, height: 8), Color(white: 0.6))
+    fill(ctx, CGRect(x: 0, y: floor + 32, width: Stage.W, height: Stage.H - floor - 32), Color(white: 0.30))
+    for x in stride(from: 20.0, to: Stage.W, by: 90) { fill(ctx, CGRect(x: x, y: floor + 62, width: 44, height: 5), Color(red: 1, green: 0.85, blue: 0.2)) }
+
+    // Brick neighbors on either side
+    for r in [CGRect(x: 30, y: 300, width: 220, height: floor - 300), CGRect(x: 950, y: 310, width: 220, height: floor - 310)] {
+        fill(ctx, r, Color(red: 0.72, green: 0.42, blue: 0.34))
+        for row in stride(from: r.minY + 10, to: r.maxY, by: 14) {
+            fill(ctx, CGRect(x: r.minX, y: row, width: r.width, height: 1.5), Color(red: 0.60, green: 0.34, blue: 0.28))
+        }
+        fill(ctx, CGRect(x: r.minX + 40, y: r.minY + 40, width: 60, height: 60), Color(red: 0.75, green: 0.88, blue: 0.95))
+        fill(ctx, CGRect(x: r.maxX - 100, y: r.minY + 40, width: 60, height: 60), Color(red: 0.75, green: 0.88, blue: 0.95))
+    }
+
+    // The shop
+    let shop = CGRect(x: 280, y: 220, width: 640, height: floor - 220)
+    ctx.fill(Path(shop), with: .linearGradient(Gradient(colors: [Color(red: 0.36, green: 0.16, blue: 0.56), Color(red: 0.20, green: 0.08, blue: 0.36)]),
+                                               startPoint: CGPoint(x: 0, y: shop.minY), endPoint: CGPoint(x: 0, y: shop.maxY)))
+    for i in 0..<14 {
+        let k = Double(i)
+        ctx.fill(circle(CGPoint(x: shop.minX + 10 + (k * 0.618).truncatingRemainder(dividingBy: 1) * (shop.width - 20),
+                                y: shop.minY + 70 + (k * 0.377).truncatingRemainder(dividingBy: 1) * 40), 1.4 + 0.6 * sin(t * 2 + k)),
+                 with: .color(.white.opacity(0.7)))
+    }
+    // A saucer on the roof, its lights chasing
+    let saucer = CGPoint(x: shop.midX, y: shop.minY - 26 + 3 * sin(t * 1.5))
+    ctx.fill(Path(ellipseIn: CGRect(x: saucer.x - 30, y: saucer.y - 22, width: 60, height: 34)), with: .color(Color(red: 0.70, green: 0.95, blue: 0.80).opacity(0.85)))
+    ctx.fill(Path(ellipseIn: CGRect(x: saucer.x - 80, y: saucer.y - 6, width: 160, height: 28)), with: .color(Color(white: 0.78)))
+    for k in 0..<7 {
+        let on = (Int(t * 6) + k) % 3 == 0
+        ctx.fill(circle(CGPoint(x: saucer.x - 60 + Double(k) * 20, y: saucer.y + 9), 3.5), with: .color(on ? .yellow : .green.opacity(0.6)))
+    }
+    // Neon sign
+    let sign = CGRect(x: shop.midX - 200, y: shop.minY + 14, width: 400, height: 46)
+    fill(ctx, sign, Color(red: 0.06, green: 0.02, blue: 0.10), corner: 10)
+    let pulse = 0.75 + 0.25 * sin(t * 3)
+    ctx.stroke(Path(roundedRect: sign, cornerRadius: 10), with: .color(Color(red: 0.45, green: 1, blue: 0.45).opacity(pulse)), lineWidth: 3)
+    ctx.draw(Text("COSMIC CUSTOMS").font(.system(size: 28, weight: .black, design: .rounded)).foregroundStyle(Color(red: 0.45, green: 1, blue: 0.45).opacity(pulse)),
+             at: CGPoint(x: sign.midX, y: sign.midY))
+    ctx.draw(Text("Looks · Outfits · Casino Decor · Machine Upgrades").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(casinoGold),
+             at: CGPoint(x: shop.midX, y: shop.minY + 80))
+
+    // Window 1: antenna headbands and color swatches
+    let w1 = CGRect(x: shop.minX + 30, y: shop.minY + 140, width: 200, height: 110)
+    fill(ctx, w1, Color(red: 0.80, green: 0.90, blue: 0.97))
+    for (i, c) in [AlienColor.purple, .orange, .teal, .gold, .silver].enumerated() {
+        ctx.fill(circle(CGPoint(x: w1.minX + 24 + Double(i) * 38, y: w1.maxY - 24), 13), with: .color(c.skin.color))
+    }
+    for k in 0..<2 {
+        let hx = w1.minX + 60 + Double(k) * 80
+        var band = Path()
+        band.addArc(center: CGPoint(x: hx, y: w1.minY + 56), radius: 22, startAngle: .degrees(200), endAngle: .degrees(340), clockwise: false)
+        ctx.stroke(band, with: .color(.black.opacity(0.7)), lineWidth: 3)
+        for side in [-1.0, 1.0] {
+            let tip = CGPoint(x: hx + side * 16, y: w1.minY + 18 + 3 * sin(t * 4 + side))
+            var stalk = Path()
+            stalk.move(to: CGPoint(x: hx + side * 12, y: w1.minY + 40))
+            stalk.addLine(to: tip)
+            ctx.stroke(stalk, with: .color(.black.opacity(0.7)), lineWidth: 2)
+            ctx.fill(circle(tip, 5), with: .color(.green))
+        }
+    }
+    ctx.stroke(Path(w1), with: .color(.white), lineWidth: 4)
+    // Window 2: a dress and a mini poker cabinet
+    let w2 = CGRect(x: shop.maxX - 230, y: shop.minY + 140, width: 200, height: 110)
+    fill(ctx, w2, Color(red: 0.80, green: 0.90, blue: 0.97))
+    var dress = Path()
+    let dx = w2.minX + 55
+    dress.move(to: CGPoint(x: dx - 8, y: w2.minY + 24))
+    dress.addLine(to: CGPoint(x: dx + 8, y: w2.minY + 24))
+    dress.addLine(to: CGPoint(x: dx + 24, y: w2.maxY - 10))
+    dress.addLine(to: CGPoint(x: dx - 24, y: w2.maxY - 10))
+    dress.closeSubpath()
+    ctx.fill(dress, with: .color(Color(red: 0.88, green: 0.72, blue: 0.30)))
+    for k in 0..<6 {
+        let on = (Int(t * 5) + k) % 3 == 0
+        ctx.fill(circle(CGPoint(x: dx - 12 + Double(k % 3) * 12, y: w2.minY + 50 + Double(k / 3) * 22), 1.6), with: .color(.white.opacity(on ? 1 : 0.4)))
+    }
+    ctx.fill(circle(CGPoint(x: dx, y: w2.minY + 16), 7), with: .color(Color(white: 0.85)))
+    let cab = CGRect(x: w2.maxX - 70, y: w2.minY + 18, width: 40, height: 82)
+    fill(ctx, cab, Color(red: 0.78, green: 0.60, blue: 0.18), corner: 5)
+    fill(ctx, CGRect(x: cab.minX + 5, y: cab.minY + 14, width: 30, height: 22), .black, corner: 3)
+    ctx.fill(headShape(CGPoint(x: cab.midX, y: cab.minY + 25), hr: 5, alien: 1).path, with: .color(Person.alienSkin.color))
+    ctx.stroke(Path(w2), with: .color(.white), lineWidth: 4)
+
+    // Door
+    let door = CGRect(x: Stage.customsDoorX - 30, y: floor - 110, width: 60, height: 110)
+    fill(ctx, door.insetBy(dx: -5, dy: -5), casinoGold)
+    fill(ctx, door, doorOpen ? Color(red: 0.95, green: 0.85, blue: 1.0) : Color(red: 0.55, green: 0.80, blue: 0.90).opacity(0.8))
+    if doorOpen {
+        fill(ctx, CGRect(x: door.minX, y: door.minY, width: 14, height: door.height), Color(red: 0.30, green: 0.30, blue: 0.40))
+    } else {
+        fill(ctx, CGRect(x: door.midX - 1.5, y: door.minY, width: 3, height: door.height), Color(white: 0.4))
+    }
+    ctx.draw(Text("OPEN").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(.red),
+             at: CGPoint(x: door.midX, y: door.minY + 16))
+}
+
 // MARK: The guests' street
 
 /// A quiet street: one little house per household, each with a front door at `Stage.guestDoorX`.
@@ -902,8 +1118,9 @@ private func drawStandingMirror(_ ctx: GraphicsContext, accent: Color) {
 }
 
 /// The casino floor: dark walls, a patterned carpet, slot machines, chandeliers and a marquee.
-private func drawCasino(_ ctx: GraphicsContext, now: Date) {
+private func drawCasino(_ ctx: GraphicsContext, d: Director, now: Date) {
     let t = now.timeIntervalSinceReferenceDate
+    let decor = d.custom
     ctx.fill(Path(CGRect(x: 0, y: 0, width: Stage.W, height: Stage.floorY)),
              with: .linearGradient(Gradient(colors: [Color(red: 0.16, green: 0.05, blue: 0.12), Color(red: 0.42, green: 0.10, blue: 0.18)]),
                                    startPoint: .zero, endPoint: CGPoint(x: 0, y: Stage.floorY)))
@@ -912,17 +1129,21 @@ private func drawCasino(_ ctx: GraphicsContext, now: Date) {
         fill(ctx, CGRect(x: x - 9, y: 60, width: 18, height: Stage.floorY - 60), casinoGold.opacity(0.35))
     }
     // Carpet
-    fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: Stage.H - Stage.floorY), Color(red: 0.50, green: 0.08, blue: 0.12))
+    fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: Stage.H - Stage.floorY), decor.carpet.base)
     for i in 0..<30 {
         for row in 0..<3 {
             let c = CGPoint(x: Double(i) * 42 + (row % 2 == 0 ? 0 : 21), y: Stage.floorY + 22 + Double(row) * 32)
+            if decor.carpet == .starry {
+                ctx.fill(circle(c, (i + row) % 4 == 0 ? 2.6 : 1.4), with: .color(decor.carpet.pattern.opacity(0.8)))
+                continue
+            }
             var diamond = Path()
             diamond.move(to: CGPoint(x: c.x, y: c.y - 9))
             diamond.addLine(to: CGPoint(x: c.x + 9, y: c.y))
             diamond.addLine(to: CGPoint(x: c.x, y: c.y + 9))
             diamond.addLine(to: CGPoint(x: c.x - 9, y: c.y))
             diamond.closeSubpath()
-            ctx.fill(diamond, with: .color(casinoGold.opacity(0.45)))
+            ctx.fill(diamond, with: .color(decor.carpet.pattern.opacity(0.45)))
         }
     }
     fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: 6), casinoGold.opacity(0.7))
@@ -934,7 +1155,7 @@ private func drawCasino(_ ctx: GraphicsContext, now: Date) {
         let k = Double(i)
         let on = (Int(t * 8) + i) % 3 == 0
         let pt = i < 18 ? CGPoint(x: sign.minX + 12 + k * 24, y: sign.minY + 6) : CGPoint(x: sign.minX + 12 + (k - 18) * 24, y: sign.maxY - 6)
-        ctx.fill(circle(pt, 3), with: .color(on ? .yellow : casinoGold.opacity(0.4)))
+        ctx.fill(circle(pt, 3), with: .color(on ? decor.neon.color : casinoGold.opacity(0.4)))
     }
     ctx.draw(Text(CasinoGame.casinoName.uppercased()).font(.system(size: 19, weight: .black, design: .rounded)).foregroundStyle(casinoGold),
              at: CGPoint(x: sign.midX, y: sign.midY))
@@ -958,6 +1179,9 @@ private func drawCasino(_ ctx: GraphicsContext, now: Date) {
     ctx.draw(Text("EXIT →").font(.system(size: 14, weight: .black, design: .rounded)).foregroundStyle(.white),
              at: CGPoint(x: exit.midX, y: exit.midY))
 
+    if decor.extras.contains(.palms) {
+        for x in [470.0, 968.0] { drawPalm(ctx, x: x, t: t) }
+    }
     // A row of slot machines along the back wall on the right
     let colors: [Color] = [.red, .blue, .purple, .orange, .teal]
     for i in 0..<5 {
@@ -974,11 +1198,71 @@ private func drawCasino(_ ctx: GraphicsContext, now: Date) {
         }
         fill(ctx, CGRect(x: m.maxX - 2, y: m.minY + 30, width: 4, height: 30), Color(white: 0.7))
         ctx.fill(circle(CGPoint(x: m.maxX, y: m.minY + 28), 4), with: .color(.red))
+        if decor.extras.contains(.lavaLamps) {
+            drawLavaLamp(ctx, x: m.midX, base: m.minY, color: [Color.pink, .orange, .green, .purple, .cyan][i], t: t + Double(i))
+        }
+    }
+    if decor.extras.contains(.discoBall) { drawDiscoBall(ctx, center: CGPoint(x: 1085, y: 175), t: t) }
+}
+
+private func drawPalm(_ ctx: GraphicsContext, x: Double, t: Double) {
+    let floor = Stage.floorY
+    // Pot, trunk and fronds
+    var pot = Path()
+    pot.move(to: CGPoint(x: x - 20, y: floor - 40))
+    pot.addLine(to: CGPoint(x: x + 20, y: floor - 40))
+    pot.addLine(to: CGPoint(x: x + 14, y: floor))
+    pot.addLine(to: CGPoint(x: x - 14, y: floor))
+    pot.closeSubpath()
+    ctx.fill(pot, with: .color(casinoGold))
+    let top = CGPoint(x: x + 4, y: floor - 190)
+    var trunk = Path()
+    trunk.move(to: CGPoint(x: x, y: floor - 40))
+    trunk.addQuadCurve(to: top, control: CGPoint(x: x - 12, y: floor - 120))
+    ctx.stroke(trunk, with: .color(Color(red: 0.50, green: 0.34, blue: 0.18)), style: StrokeStyle(lineWidth: 9, lineCap: .round))
+    let sway = sin(t * 0.8) * 0.06
+    for k in 0..<7 {
+        let ang = (-160.0 + Double(k) * 23) * .pi / 180 + sway
+        var frond = Path()
+        frond.move(to: top)
+        let tip = CGPoint(x: top.x + cos(ang) * 62, y: top.y + sin(ang) * 40 + 26)
+        frond.addQuadCurve(to: tip, control: CGPoint(x: top.x + cos(ang) * 40, y: top.y + sin(ang) * 46 - 6))
+        ctx.stroke(frond, with: .color(Color(red: 0.18, green: 0.55, blue: 0.25)), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+    }
+}
+
+private func drawLavaLamp(_ ctx: GraphicsContext, x: Double, base: Double, color: Color, t: Double) {
+    fill(ctx, CGRect(x: x - 7, y: base - 8, width: 14, height: 8), Color(white: 0.75), corner: 2)
+    let glass = CGRect(x: x - 5, y: base - 34, width: 10, height: 26)
+    fill(ctx, glass, color.opacity(0.35), corner: 5)
+    for k in 0..<2 {
+        let y = glass.maxY - 5 - (0.5 + 0.5 * sin(t * 0.9 + Double(k) * 2.2)) * (glass.height - 10)
+        ctx.fill(circle(CGPoint(x: x, y: y), 3.2), with: .color(color))
+    }
+    fill(ctx, CGRect(x: x - 4, y: base - 38, width: 8, height: 5), Color(white: 0.75), corner: 2)
+}
+
+/// A mirror ball spinning on a chain, throwing little flecks of light around the room.
+private func drawDiscoBall(_ ctx: GraphicsContext, center c: CGPoint, t: Double) {
+    fill(ctx, CGRect(x: c.x - 1, y: 0, width: 2, height: c.y - 22), Color(white: 0.7))
+    ctx.fill(circle(c, 24), with: .color(Color(white: 0.78)))
+    for row in -3...3 {
+        for col in -3...3 where row * row + col * col <= 10 {
+            let lit = (row * 7 + col * 3 + Int(t * 5)) % 4 == 0
+            fill(ctx, CGRect(x: c.x + Double(col) * 6.4 - 2.8, y: c.y + Double(row) * 6.4 - 2.8, width: 5.6, height: 5.6),
+                 lit ? .white : Color(white: 0.55 + 0.1 * Double((row + col + 6) % 3)), corner: 1)
+        }
+    }
+    for k in 0..<14 {
+        let ang = Double(k) * 0.45 + t * 0.7
+        let r = 120 + Double(k % 4) * 70
+        let p = CGPoint(x: c.x + cos(ang) * r, y: c.y + abs(sin(ang)) * r * 0.8 + 30)
+        ctx.fill(circle(p, 3), with: .color([Color.white, .pink, .cyan, .yellow][k % 4].opacity(0.55)))
     }
 }
 
 /// The card table, drawn over the lower half of whoever stands behind it, with the cards on its felt.
-private func drawTable(_ ctx: GraphicsContext, felt cards: [FeltCards]) {
+private func drawTable(_ ctx: GraphicsContext, felt cards: [FeltCards], color felt: Color) {
     let t = Stage.table
     let wood = Color(red: 0.35, green: 0.18, blue: 0.08)
     // Pedestal and skirt

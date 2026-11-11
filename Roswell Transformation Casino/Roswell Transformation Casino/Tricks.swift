@@ -497,6 +497,46 @@ enum Tricks {
         case .diamonds:
             return try await diamonds(names: names, dealer: dealer, round: round, host: host)
 
+        case .allFours:
+            // 6 cards each; the next card is turned up for trump. Must follow suit; if you can't, trump or throw anything.
+            var (hands, rest) = deal(4, each: 6)
+            showMine(hands)
+            let up = rest[0]
+            let t = up.suit
+            host.show([FeltGroup(seat: nil, cards: [up], label: "Turned up · trump")])
+            host.caption("The \(up.label) is turned up — \(suitNames[t].lowercased()) are trump.")
+            try await host.pause(1.4)
+            let dealt = hands
+            let r = Rules(seats: 4, trump: t)
+            let (_, won) = try await playOut(&hands, leader: (dealer + 1) % 4, rules: r, names: names, host: host, wants: { _ in true },
+                                             partner: partner, header: "\(suitSymbols[t]) trump · High, Low, Jack, Game")
+            // Partners score together. High and Low go to whoever was dealt them, Jack to whoever wins it,
+            // Game to the team with the most card points (10 = 10, A = 4, K = 3, Q = 2, J = 1; a tie scores nobody).
+            var team = [0, 0]
+            var got: [String] = []
+            func teamName(_ seat: Int) -> String { "\(names[seat % 2]) & \(names[seat % 2 + 2])" }
+            let trumps = dealt.enumerated().flatMap { s, cards in cards.filter { $0.suit == t }.map { (s, $0) } }
+            if let hi = trumps.max(by: { $0.1.rank < $1.1.rank }) { team[hi.0 % 2] += 1; got.append("High \(hi.1.label): \(names[hi.0])") }
+            if let lo = trumps.min(by: { $0.1.rank < $1.1.rank }) { team[lo.0 % 2] += 1; got.append("Low \(lo.1.label): \(names[lo.0])") }
+            if let j = won.firstIndex(where: { $0.contains(Card(rank: 11, suit: t)) }) {
+                team[j % 2] += 1
+                got.append("Jack: \(names[j])")
+            } else if !trumps.contains(where: { $0.1.rank == 11 }) {
+                got.append("Jack not dealt")
+            }
+            let gamePts = [0, 1].map { tm in (won[tm] + won[tm + 2]).reduce(0) { $0 + pitchGamePoints($1) } }
+            if gamePts[0] != gamePts[1] {
+                let w = gamePts[0] > gamePts[1] ? 0 : 1
+                team[w] += 1
+                got.append("Game \(gamePts[w])–\(gamePts[1 - w]): \(teamName(w))")
+            } else {
+                got.append("Game tied \(gamePts[0])–\(gamePts[1]), no point")
+            }
+            return Outcome(points: [team[0], team[1], team[0], team[1]], note: got.joined(separator: " · "))
+
+        case .fives:
+            return try await fives(names: names, scores: scores, round: round, dealer: dealer, host: host)
+
         default:
             return Outcome(points: names.map { _ in 0 }, note: "")
         }
@@ -610,6 +650,150 @@ enum Tricks {
         return best
     }
 
+    // MARK: Fives
+
+    /// How sloppy the computer players are at Fives: the points per later hand they expect (really about 6),
+    /// how often they just toss a card, and how often they remember to dodge a trick with a Magenta 5.
+    static let fivesPace = 3.0
+    static let fivesBlunder = 0.2
+    static let fivesDodge = 0.35
+
+    /// What a winning card adds to its owner's tally in Fives: 2–10 = 1, J/Q/K = 2, A = 3, a Magenta 5 = 5.
+    static func fivesValue(_ c: Card, magenta: Bool) -> Int {
+        if magenta { return 5 }
+        return c.rank == 14 ? 3 : c.rank >= 11 ? 2 : 1
+    }
+
+    /// One hand of Fives: 13 cards each (12 with three players), spades are the silver trump suit.
+    /// Must follow suit — unless you lay any card face down as a Magenta 5. The trick's winner scores only her own
+    /// winning card. After the last hand, the player closest to 25 without going over wins.
+    private static func fives(names: [String], scores: [Int], round: Int, dealer: Int, host: TableHost) async throws -> Outcome {
+        struct Play { let seat: Int; let card: Card; let magenta: Bool }
+        let n = names.count
+        let goal = CasinoGame.fivesGoal
+        let trump = 0
+        let magentaSuit = 4
+        var hands = deal(n, each: n == 4 ? 13 : 12).hands
+        if let me = host.human { host.hand(hands[me]) }
+        var pts = Array(repeating: 0, count: n)
+        var leader = (dealer + 1) % n
+        let handsLeft = max(1, CasinoGame.fives.target - round)
+        let header = "♠ silver trump · aim for \(goal)"
+
+        func color(_ p: Play) -> Int { p.magenta ? magentaSuit : p.card.suit }
+        func power(_ p: Play, led: Int) -> Int {
+            let c = color(p)
+            if c == trump { return 100 + p.card.rank }
+            return c == led ? (p.magenta ? 5 : p.card.rank) : 0
+        }
+        /// Highest of the led colour wins unless trump is played; on a tie (two Magenta 5s) the first one stands.
+        func winner(_ trick: [Play]) -> Play {
+            let led = color(trick[0])
+            var best = trick[0]
+            for p in trick.dropFirst() where power(p, led: led) > power(best, led: led) { best = p }
+            return best
+        }
+        func noteTally() {
+            host.notes(names.indices.map { "\(pts[$0]) this hand · \(scores[$0] + pts[$0]) total\(scores[$0] + pts[$0] > goal ? " BUST" : "")" })
+        }
+        func show(_ trick: [Play]) {
+            host.show([FeltGroup(seat: nil, cards: [], label: header)] +
+                      trick.map { FeltGroup(seat: $0.seat, cards: [$0.card], label: $0.magenta ? "Magenta 5" : nil, hidden: $0.magenta ? [0] : []) })
+        }
+        /// A computer player: take tricks with cheap winners while she's behind the pace, dodge once she's close to 25.
+        /// She's sloppy on purpose — she underrates what later hands will bring, sometimes just tosses a card,
+        /// and doesn't always think to dodge with a Magenta 5 — so plenty of players go over 25.
+        func autoPlay(_ seat: Int, _ hand: [Card], _ trick: [Play]) -> (Card, Bool) {
+            let room = goal - (scores[seat] + pts[seat])
+            let wants = room > 0 && Double(room) - Double(handsLeft - 1) * fivesPace >= 1
+            if Double.random(in: 0..<1) < fivesBlunder {
+                let led = trick.first.map(color)
+                let follow = led.map { l in hand.filter { $0.suit == l } } ?? []
+                return ((follow.isEmpty ? hand : follow).randomElement()!, false)
+            }
+            let lowest = hand.min { ($0.suit == trump ? 1 : 0, $0.rank) < ($1.suit == trump ? 1 : 0, $1.rank) }!
+            guard let first = trick.first else {
+                if wants {
+                    if room >= 5 && room <= 7 { return (lowest, true) }
+                    let ok = hand.filter { fivesValue($0, magenta: false) <= room }
+                    if let top = ok.max(by: { (power(Play(seat: seat, card: $0, magenta: false), led: $0.suit), $0.rank)
+                                              < (power(Play(seat: seat, card: $1, magenta: false), led: $1.suit), $1.rank) }), top.rank >= 12 {
+                        return (top, false)
+                    }
+                }
+                return (lowest, false)
+            }
+            let led = color(first)
+            let follow = hand.filter { $0.suit == led }
+            let legal = follow.isEmpty ? hand : follow
+            func pw(_ c: Card) -> Int { power(Play(seat: seat, card: c, magenta: false), led: led) }
+            let best = power(winner(trick), led: led)
+            let beating = legal.filter { pw($0) > best }
+            if wants {
+                if let c = beating.filter({ fivesValue($0, magenta: false) <= room }).min(by: { pw($0) < pw($1) }) { return (c, false) }
+                return (legal.min { (pw($0), $0.rank) < (pw($1), $1.rank) }!, false)
+            }
+            let losing = legal.filter { pw($0) <= best }
+            if let c = losing.max(by: { (pw($0), $0.rank) < (pw($1), $1.rank) }) { return (c, false) }
+            // Every card she could follow with would win: lay her smallest card face down as a Magenta 5 — if she thinks of it.
+            if Double.random(in: 0..<1) < fivesDodge { return (lowest, true) }
+            return (legal.min { (pw($0), $0.rank) < (pw($1), $1.rank) }!, false)
+        }
+
+        host.caption("Hand \(round + 1) of \(CasinoGame.fives.target): spades are the silver trump suit.")
+        noteTally()
+        for _ in 0..<hands[0].count {
+            var trick: [Play] = []
+            for k in 0..<n {
+                let seat = (leader + k) % n
+                let hand = hands[seat]
+                let (autoCard, autoMagenta) = autoPlay(seat, hand, trick)
+                var card = autoCard, magenta = autoMagenta
+                if seat == host.human {
+                    let led = trick.first.map(color)
+                    let follow = led.map { l in hand.filter { $0.suit == l } } ?? []
+                    let legal = follow.isEmpty ? hand : follow
+                    let title = trick.isEmpty ? "Your lead — or lay any card face down as a Magenta 5 (worth 5 if it wins)."
+                        : "Your play — \(names[trick[0].seat]) led \(led == magentaSuit ? "a Magenta 5" : suitNames[led!].lowercased()). Follow suit, or lay a card face down as a Magenta 5."
+                    let answer = try await host.ask(PlayerPrompt(title: title, options: ["Lay one face down as a Magenta 5"], playable: Set(legal)),
+                                                    autoMagenta ? .option(0) : .card(autoCard))
+                    switch answer {
+                    case .card(let c) where legal.contains(c):
+                        (card, magenta) = (c, false)
+                    case .option:
+                        let pick = try await host.ask(PlayerPrompt(title: "Tap the card to lay face down as a Magenta 5.", playable: Set(hand)),
+                                                      .card(autoMagenta ? autoCard : hand.min { $0.rank < $1.rank }!))
+                        if case .card(let c) = pick, hand.contains(c) { card = c }
+                        magenta = true
+                    default:
+                        break
+                    }
+                }
+                hands[seat].removeAll { $0 == card }
+                trick.append(Play(seat: seat, card: card, magenta: magenta))
+                show(trick)
+                if magenta { host.caption("\(names[seat]) lays a card face down — a Magenta 5!") }
+                if seat == host.human { host.hand(hands[seat]) }
+                try await host.pause(seat == host.human ? 0.25 : 0.55)
+            }
+            let w = winner(trick)
+            let v = fivesValue(w.card, magenta: w.magenta)
+            pts[w.seat] += v
+            noteTally()
+            host.caption("\(names[w.seat]) takes the trick with \(w.magenta ? "a Magenta 5" : "the \(w.card.label)") · +\(v)")
+            try await host.pause(0.9)
+            leader = w.seat
+        }
+        host.show([FeltGroup(seat: nil, cards: [], label: header)])
+        let totals = names.indices.map { scores[$0] + pts[$0] }
+        let bust = names.indices.filter { totals[$0] > goal && scores[$0] <= goal }.map { names[$0] }
+        let exact = names.indices.filter { totals[$0] == goal }.map { names[$0] }
+        var note = names.indices.map { "\(names[$0]) +\(pts[$0])" }.joined(separator: " · ")
+        if !exact.isEmpty { note += " · \(exact.joined(separator: " & ")) on exactly \(goal)!" }
+        if !bust.isEmpty { note += " · \(bust.joined(separator: " & ")) \(bust.count == 1 ? "busts" : "bust")!" }
+        return Outcome(points: pts, note: note)
+    }
+
     // MARK: Helpers for the computer players
 
     private static func pitchGamePoints(_ c: Card) -> Int {
@@ -663,6 +847,13 @@ enum Tricks {
             // Diamonds ends after one round per player; the most crystal points wins.
             guard hands >= game.target, let high = scores.max() else { return nil }
             return scores.indices.filter { scores[$0] == high }
+        case .fives:
+            // After the last hand: closest to 25 without going over. If everyone busts, the smallest bust wins.
+            guard hands >= game.target else { return nil }
+            let safe = scores.indices.filter { scores[$0] <= CasinoGame.fivesGoal }
+            if let top = safe.map({ scores[$0] }).max() { return safe.filter { scores[$0] == top } }
+            let low = scores.min()!
+            return scores.indices.filter { scores[$0] == low }
         case .hearts:
             guard scores.contains(where: { $0 >= game.target }) else { return nil }
             let low = scores.min()!

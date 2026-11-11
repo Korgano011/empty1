@@ -15,6 +15,8 @@ struct SaveGame: Codable {
     /// The aunt and cousin are sleeping over as aliens; these are their colors.
     var auntColor: String?
     var cousinColor: String?
+    /// Everything bought at Cosmic Customs (missing in saves from before the shop opened).
+    var custom: Customization?
 
     var sleepover: Bool { auntColor != nil && cousinColor != nil }
 

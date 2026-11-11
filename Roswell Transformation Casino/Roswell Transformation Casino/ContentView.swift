@@ -3,6 +3,8 @@ import SwiftUI
 struct ContentView: View {
     @State private var director = Director()
     @State private var showAlbum = false
+    /// The shop opened from the button between days (Mom's end-of-day visit opens it by itself).
+    @State private var showShop = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -21,7 +23,7 @@ struct ContentView: View {
                 .overlay(alignment: .topLeading) { muteButton.padding(8) }
                 .overlay(alignment: .bottomTrailing) {
                     if director.atCasino || director.inTown {
-                        Text((director.inTown ? "Main Street" : CasinoGame.casinoName) + " · Cash $\(director.cash)"
+                        Text((director.inCustoms ? "Cosmic Customs" : director.inTown ? "Main Street" : CasinoGame.casinoName) + " · Cash $\(director.cash)"
                              + (director.bank > 0 || director.inTown ? " · Bank $\(director.bank)" : ""))
                             .font(.system(.headline, design: .rounded, weight: .heavy))
                             .contentTransition(.numericText())
@@ -43,12 +45,12 @@ struct ContentView: View {
             if director.choosingGame {
                 // On a phone the two game boxes don't fit under the stage, so the picker scrolls.
                 ScrollView {
-                    GamePicker(canEnd: director.gamesPlayed > 0, daytime: director.daytime) { director.choose($0, daughterHouse: $1) }
+                    GamePicker(canEnd: director.gamesPlayed > 0, daytime: director.daytime, host: director.hostName) { director.choose($0, daughterHouse: $1) }
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .transition(.scale.combined(with: .opacity))
             } else if director.choosingNext {
-                NightPicker(night: director.nights, cash: director.cash, bank: director.bank) { director.chooseNext($0) }
+                NightPicker(night: director.nights, cash: director.cash, bank: director.bank, shop: { showShop = true }) { director.chooseNext($0) }
                     .transition(.scale.combined(with: .opacity))
             } else {
                 if let result = director.result {
@@ -81,9 +83,30 @@ struct ContentView: View {
         .padding()
         .animation(.spring(duration: 0.35), value: director.choosingGame)
         .animation(.spring(duration: 0.35), value: director.choosingNext)
+        .overlay {
+            // The Roswell of Poker's screen fills the window while someone is playing it.
+            if let poker = director.poker {
+                PokerMachineView(session: poker)
+                    .overlay(alignment: .topLeading) { muteButton.padding(8) }
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.4), value: director.poker == nil)
         .sheet(isPresented: $showAlbum) {
             AlbumView(album: director.album)
         }
+        .background {
+            // Cosmic Customs: on its own view so it never fights the album sheet.
+            Color.clear.sheet(isPresented: Binding(get: { director.shopping || showShop },
+                                                   set: { if !$0 { closeShop() } })) {
+                ShopView(director: director) { closeShop() }
+            }
+        }
+    }
+
+    private func closeShop() {
+        showShop = false
+        director.closeShop()
     }
 
     private var muteButton: some View {
@@ -98,11 +121,12 @@ struct ContentView: View {
     }
 }
 
-/// After a day and a night at the casino: go back tomorrow, or call it a wrap. Either way Mom does her errands in the morning.
+/// After a day at the casino: go back tomorrow, or call it a wrap. Mom does her errands at the end of each day.
 struct NightPicker: View {
     let night: Int
     let cash: Int
     let bank: Int
+    let shop: () -> Void
     let pick: (Bool) -> Void
 
     var body: some View {
@@ -110,8 +134,8 @@ struct NightPicker: View {
             Text("Day \(night) is over! Cash $\(cash) · Bank $\(bank)")
                 .font(.system(.headline, design: .rounded, weight: .heavy))
             Text(night % 2 == 0
-                 ? "Tomorrow morning the family turns alien again and plays one game twice, then Mom shops and banks. If you go back, her sister visits first — they go shopping, and the cousin helps out for a quarter of the day's profit."
-                 : "Tomorrow morning the family turns alien again and plays one game twice, then Mom shops and banks before bed.")
+                 ? "Tomorrow morning the mini saucers turn the family alien again and they play one game twice in the cottage casino, then Mom shops and banks at the end of the day. If you go back, her sister visits first — while the moms shop, the girls host a casino game of their own, and the cousin helps out for a quarter of the profit."
+                 : "Tomorrow morning the mini saucers turn the family alien again and they play one game twice in the cottage casino, then Mom shops and banks at the end of the day.")
                 .font(.system(.subheadline, design: .rounded))
                 .multilineTextAlignment(.center)
             HStack(spacing: 12) {
@@ -120,6 +144,9 @@ struct NightPicker: View {
                 Button("Call It a Wrap", systemImage: "moon.zzz.fill") { pick(false) }
                     .buttonStyle(.bordered)
             }
+            Button("Cosmic Customs Shop", systemImage: "bag.fill", action: shop)
+                .buttonStyle(.bordered)
+                .tint(.purple)
         }
         .padding(14)
         .frame(maxWidth: 520)
@@ -132,24 +159,26 @@ struct GamePicker: View {
     let canEnd: Bool
     /// The afternoon session rather than the night one.
     var daytime = false
+    /// Who deals: Mom, or Ava when the girls run the casino while Mom's out shopping.
+    var host = "Mom"
     let pick: (CasinoGame?, Bool) -> Void
     /// At a moneymaker table: does the daughter who joins bank the game while Mom deals?
     @State private var daughterHouse = false
 
     var body: some View {
         VStack(spacing: 10) {
-            Text("Which game should Mom deal? Every player goes through the Roswell transformation machine first. Moneymakers are at the casino ($\(CasinoGame.buyIn) buy-in); just-for-fun games are at home and free.")
+            Text("Which game should \(host) deal in the \(CasinoGame.casinoName)? Every player stands by the Roswell of Poker and gets changed by a mini saucer first. Moneymakers have a $\(CasinoGame.buyIn) buy-in; just-for-fun games are free.")
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .multilineTextAlignment(.center)
             box("Moneymaker Games", "Up to \(CasinoGame.maxPlayers) guests · play to $\(CasinoGame.buyIn * CasinoGame.goal) or broke · setup $\(CasinoGame.setupFee)", CasinoGame.moneyGames) {
                 Picker("House", selection: $daughterHouse) {
-                    Text("Mom is the house · you play a daughter").tag(false)
-                    Text("A daughter is the house · Mom deals").tag(true)
+                    Text(host == "Mom" ? "Mom is the house · you play a daughter" : "\(host) is the house · you play Rosie").tag(false)
+                    Text(host == "Mom" ? "A daughter is the house · Mom deals" : "Rosie is the house · \(host) deals").tag(true)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
-            box("Just for Fun", "At home · Mom and a daughter (you!) play too · no buy-in", CasinoGame.funGames) { EmptyView() }
+            box("Just for Fun", host == "Mom" ? "Mom and a daughter (you!) play too · no buy-in" : "\(host) and Rosie (you!) play too · no buy-in", CasinoGame.funGames) { EmptyView() }
             if canEnd {
                 Button(daytime ? "End the Day" : "End the Night", systemImage: daytime ? "sun.max.fill" : "moon.stars.fill") { pick(nil, false) }
                     .buttonStyle(.bordered)
