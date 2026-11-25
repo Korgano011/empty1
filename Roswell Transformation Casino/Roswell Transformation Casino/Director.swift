@@ -47,6 +47,8 @@ final class Director {
     var boothT0 = Date.distantPast
     /// How long this run's saucers take to fly out and back.
     var saucerFlight = BoothRun.lower
+    /// Where the mini saucers fly out of (and back into); nil = the hatch on the Roswell of Poker.
+    var saucerFrom: CGPoint?
     var pressT0 = Date.distantPast
 
     // The casino
@@ -639,7 +641,8 @@ final class Director {
     /// `view`: where the camera waits while the saucers fly in (the cottage unless she's somewhere else, like the living room).
     /// `summon`: the family calls the saucers from wherever they are in the house; they fly over from the cottage and announce themselves.
     private func saucers(_ group: [Person], at spots: [Double]? = nil, firstTime: Bool = false, surprise: Bool = false, again: Bool = false,
-                         summon: Bool = false, view: CGRect = Stage.boothView, flight: Double = BoothRun.lower) async throws {
+                         summon: Bool = false, view: CGRect = Stage.boothView, flight: Double = BoothRun.lower,
+                         fromComputer: CGPoint? = nil) async throws {
         let spots = spots ?? Array(Stage.seatX.prefix(group.count))
         let names = Self.list(group.map(\.id))
         // Guests in for a surprise are shown where to stand by one of the family.
@@ -689,6 +692,7 @@ final class Director {
 
         let t0 = Date.now
         saucerFlight = flight
+        saucerFrom = fromComputer
         beamPeople = group
         boothT0 = t0
         for p in group {
@@ -698,7 +702,8 @@ final class Director {
             p.changeDur = BoothRun.charge * 0.5 + BoothRun.beam
         }
         sound.motor(true)
-        caption = summon ? caption : view != Stage.boothView ? "Whirr… the mini saucer swoops in over \(names)'s head!"
+        caption = summon ? caption : fromComputer != nil ? "Whirr… a mini saucer flies right out of the computer screen and over \(names)'s head!"
+            : view != Stage.boothView ? "Whirr… the mini saucer swoops in over \(names)'s head!"
             : group.count == 1 ? "Whirr… a mini saucer flies out of the machine and over \(names)'s head!"
                                    : "Whirr… a mini saucer flies out of the machine for each of them!"
         // A long flight (across the yard into the house) is watched from far enough back to see the whole trip.
@@ -748,6 +753,7 @@ final class Director {
         sound.motor(true)
         for p in group { p.alien = true }
         caption = group.count == 1 ? "The mini saucer zips back into the machine…" : "The mini saucers zip back into the machine…"
+        if fromComputer != nil { caption = "The mini saucer zips back into the computer screen…" }
         if flight > BoothRun.lower {
             caption = group.count == 1 ? "The mini saucer flies back out of the house, across the yard and into the cottage…"
                                        : "The mini saucers fly back out of the house, across the yard and into the cottage…"
@@ -756,6 +762,7 @@ final class Director {
         try await sleep(flight)
         sound.motor(false)
         beamPeople = []
+        saucerFrom = nil
         for p in group { p.mood = .happy }
         screen = "DONE!"
         sound.ding()
@@ -1163,16 +1170,13 @@ final class Director {
         for p in cast { p.facing = 0 }
     }
 
-    /// Spots around the house the family can be when they call for the saucers: bathroom, living room and the three bedrooms.
-    private static let houseSpots: [(x: Double, room: String)] = [(640, "the bathroom"), (720, "the living room"), (800, "the living room"),
-                                                                    (Stage.roomX[0], "Mom's room"), (Stage.roomX[1], "Ava's room"), (Stage.roomX[2], "Rosie's room")]
-
-    /// The family scatter around the house and each says "Mini saucer!" — the saucers fly over from the cottage to wherever they are.
+    /// The family stand together, side by side in the living room, and call for the saucers —
+    /// the saucers fly over from the cottage and hover over all of them at once.
     private func summonSaucers(_ changing: [Person]) async throws {
-        let picks = Self.houseSpots.shuffled().prefix(changing.count).sorted { $0.x < $1.x }
-        let spots = picks.map(\.x)
-        let where_ = zip(changing, picks).map { "\($0.id) in \($1.room)" }
-        caption = changing.count == 1 ? "\(where_[0]) — no need to go out to the cottage." : "Everyone's somewhere in the house: " + Self.list(where_) + "."
+        let gap = 58.0, centre = 760.0
+        let spots = changing.indices.map { centre + (Double($0) - Double(changing.count - 1) / 2) * gap }
+        caption = changing.count == 1 ? "\(changing[0].id) waits in the living room — no need to go out to the cottage."
+                                      : "Everyone stands together in the living room: " + Self.list(changing.map(\.id)) + "."
         try await look(at: Stage.full)
         try await walkAll(zip(changing, spots).map { ($0, $1) }.filter { abs($0.0.x(at: .now) - $0.1) > 1 }, speed: 150)
         for p in changing { p.facing = 0 }
@@ -2390,7 +2394,7 @@ final class Director {
         try await sleep(2)
 
         let needed = min(3, max(1, (deficit + 99) / 100))
-        var rescuers: [(kid: Person, mother: Person, credits: Int)] = []
+        var rescuers: [(kid: Person, mother: Person, credits: Int, room: Int)] = []
         var houseShare = 0
         var tries = 0
         while rescuers.count < 3 && (rescuers.count < needed || houseShare < deficit) {
@@ -2448,7 +2452,7 @@ final class Director {
                 try await say(mother, "\(kid.id)?! \(kid.id.uppercased())! Where did you GO?!", 2.4)
                 try await say(mother, ["She was right here! A beam of light took my little girl!", "This can't be happening!"].randomElement()!, 2.4)
                 mother.visible = false
-                rescuers.append((kid, mother, credits))
+                rescuers.append((kid, mother, credits, tries - 1))
                 houseShare += credits - credits / 4
             } else {
                 kid.mood = .shocked
@@ -2569,66 +2573,11 @@ final class Director {
         try await say(mom, "Time to go home, girls. Your moms will be wondering where you are!", 2.6)
         try await sayAll(kids, "Bye! Thank you!", 1.6)
 
-        // Beamed home: each kid lands in front of her own house, where her mother is waiting at the door.
-        fadeT0 = .now
-        try await sleep(0.5)
-        atCasino = false
-        inNeighborhood = true
-        for p in cast { p.visible = false }
-        let mothers = rescuers.map(\.mother)
-        for (i, m) in mothers.enumerated() {
-            let door = Stage.guestDoorX[i]
-            (m.x0, m.x1, m.moveDur, m.facing) = (door, door, 0, 1)
-            m.mood = .shocked
-            m.visible = true
-        }
-        for k in kids { k.visible = false }
-        customers = mothers + kids
-        (camFrom, camTo) = (Stage.full, Stage.full)
-        try await sleep(0.8)
-        caption = "Meanwhile, across town, the moms are looking everywhere for their girls…"
-        try await say(mothers[0], "\(kids[0].id)! Where are you?!", 2)
-        for (i, (k, m)) in zip(kids, mothers).enumerated() {
-            let x = Stage.guestDoorX[i] + 60
-            (k.x0, k.x1, k.moveDur, k.facing) = (x, x, 0, -1)
-            teleport = (x, k.alienColor.beam.color, .now)
-            sound.beam(true)
-            caption = "ZAP! \(k.id) is beamed home to her mom — with $\(shares[i])!"
-            try await sleep(1.3)
-            k.visible = true
-            try await sleep(1.6)
-            sound.beam(false)
-            teleport = nil
-            try await say(m, "AAAH! Who are YOU?!", 1.8)
-            try await say(k, "Mom, it's me, \(k.id)! I made it to game ten on the Roswell of Poker!", 2.8)
-            if shares[i] > 0 {
-                sound.ching()
-                try await say(k, "And I brought home $\(shares[i]) for you and Dad!", 2.4)
-            }
-            m.mood = .happy
-            try await say(m, shares[i] > 0 ? "$\(shares[i])?! Well… come inside, my little alien!" : "Well… come inside, my little alien!", 2.4)
-        }
-        // Every kid goes into her house with her mom — still a Roswell alien.
-        caption = "In they go — every one of them still a Roswell alien!"
-        for (i, (k, m)) in zip(kids, mothers).enumerated() {
-            try await say(k, ["Can I stay an alien till bedtime?", "Wait till Dad sees me!", "I'm going to be green at dinner!"][i % 3], 2.2)
-            let door = Stage.guestDoorX[i]
-            try await walkAll([(k, door + 10), (m, door - 6)], speed: 110)
-            k.facing = 0
-            m.facing = 0
-            try await sleep(0.3)
-            k.visible = false
-            m.visible = false
-            sound.ding()
-            try await sleep(0.5)
-        }
-        caption = "The kids are home safe with their moms — big heads, huge eyes and all."
-        try await sleep(2)
+        try await beamKidsHome(rescuers, shares: shares)
 
         // Back with the family.
         fadeT0 = .now
         try await sleep(0.5)
-        inNeighborhood = false
         atCasino = wasAtCasino
         customers = []
         for (p, x) in zip(cast, homeX) {
@@ -2642,6 +2591,92 @@ final class Director {
         caption = "Kids to the rescue! The cash box is back to $\(cash)."
         try await say(mom, "Saved by the Roswell of Poker!", 2.2)
     }
+
+    /// Beamed home: each kid lands back inside her own house, in her bedroom, where her mom is still searching.
+    /// Then the Roswell of Poker on her computer sends out a mini saucer for her mom.
+    private func beamKidsHome(_ rescuers: [(kid: Person, mother: Person, credits: Int, room: Int)], shares: [Int]) async throws {
+        for p in cast { p.visible = false }
+        for (i, r) in rescuers.enumerated() {
+            let (k, m) = (r.kid, r.mother)
+            fadeT0 = .now
+            try await sleep(0.5)
+            atCasino = false
+            kidRoom = r.room
+            (m.x0, m.x1, m.moveDur, m.facing) = (Stage.kidPlayX + 110, Stage.kidPlayX + 110, 0, -1)
+            m.mood = .shocked
+            m.says = nil
+            m.visible = true
+            k.visible = false
+            k.says = nil
+            customers = [k, m]
+            (camFrom, camTo) = (Stage.full, Stage.full)
+            try await sleep(0.8)
+            caption = "Across town, in \(k.id)'s bedroom, her mom is still looking everywhere for her…"
+            try await look(at: Stage.shot(centerX: Stage.kidPlayX + 60, height: 320))
+            try await say(m, ["\(k.id)! Where are you?!", "\(k.id)? Sweetie? Please come back!"][i % 2], 2)
+            (k.x0, k.x1, k.moveDur, k.facing) = (Stage.kidPlayX, Stage.kidPlayX, 0, 1)
+            teleport = (Stage.kidPlayX, k.alienColor.beam.color, .now)
+            sound.beam(true)
+            caption = "ZAP! A beam shines down through the ceiling and carries \(k.id) back into her room — with $\(shares[i])!"
+            try await sleep(0.4)
+            k.lift = (.now, false)
+            k.visible = true
+            try await sleep(Person.liftTime)
+            k.lift = nil
+            try await sleep(0.6)
+            sound.beam(false)
+            teleport = nil
+            try await say(m, "AAAH! Who are YOU?!", 1.8)
+            try await say(k, "Mom, it's me, \(k.id)! I made it to game ten on the Roswell of Poker!", 2.8)
+            if shares[i] > 0 {
+                sound.ching()
+                try await say(k, "And I brought home $\(shares[i]) for you and Dad!", 2.4)
+            }
+            m.mood = .happy
+            try await say(m, shares[i] > 0 ? "$\(shares[i])?! Well… you're still my little girl — my little alien!" : "Well… you're still my little girl — my little alien!", 2.6)
+            try await say(k, "Be a Roswell alien too, Mom!", 2.2)
+            m.mood = .shocked
+            try await say(m, "Me? Honey, what are you talking about?", 2.2)
+            m.mood = .happy
+            caption = "The Roswell of Poker on \(k.id)'s computer lights up…"
+            sound.ding()
+            try await look(at: Stage.shot(centerX: Stage.kidDeskX + 40, height: 300))
+            try await sleep(1.0)
+            try await saucers([m], at: [m.x(at: .now)], firstTime: true, view: Stage.shot(centerX: Stage.kidPlayX + 60, height: 320),
+                              fromComputer: CGPoint(x: Stage.kidDeskX, y: Stage.floorY - 119))
+            m.facing = -1
+            k.facing = 1
+            try await say(m, ["I'm a Roswell alien too!", "Look at me — I'm \(m.alienColor.name)!", "My head is SO big!"].randomElement()!, 2.2)
+            try await say(k, ["Now we match, Mom!", "Yay! Wait till Dad sees us!", "We're an alien family!"][i % 3], 2.2)
+            caption = "\(k.id) and her mom are home together — two Roswell aliens!"
+            try await sleep(1.6)
+        }
+        customers = []
+        kidRoom = nil
+
+    }
+
+#if DEBUG
+    /// Debug only (launch argument -demoBeamHome): plays just the scene where a rescued kid is beamed back home.
+    func startBeamHomeDemo() {
+        task?.cancel()
+        sound.prepare()
+        (mom, ava, rosie) = Self.makeFamily()
+        running = true
+        let kid = Person.customer("Lily", kid: true, x: Stage.kidPlayX)
+        kid.alienColor = .green
+        kid.alien = true
+        (kid.changeFrom, kid.changeTo, kid.changeT0) = (0, 1, .distantPast)
+        let mother = Person.customer("Karen", kid: false, x: 0)
+        task = Task {
+            do {
+                try await sleep(1)
+                try await beamKidsHome([(kid, mother, 120, 1)], shares: [30])
+                caption = "— end of demo —"
+            } catch {}
+        }
+    }
+#endif
 
     // MARK: Helpers
 

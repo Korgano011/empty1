@@ -180,7 +180,7 @@ func drawStage(_ ctx: GraphicsContext, size: CGSize, director d: Director, now: 
         drawPerson(ctx, p, feet: CGPoint(x: p.x(at: now), y: Stage.floorY - p.liftHeight(at: now)), facing: p.facing, now: now)
     }
     // The machine's mini saucers fly out over whoever is being changed, beams and all.
-    if !outdoors { drawSaucers(ctx, d: d, now: now) }
+    if !outdoors || d.kidRoom != nil { drawSaucers(ctx, d: d, now: now) }
     if let beam = d.teleport { drawTeleport(ctx, x: beam.x, color: beam.color, age: now.timeIntervalSince(beam.t0)) }
     // Anyone changing back outside the machine twinkles while it happens.
     for p in people where !d.beamPeople.contains(where: { $0 === p }) {
@@ -551,7 +551,7 @@ private func saucerGeometry(_ d: Director, _ p: Person, now: Date) -> (center: C
     let pose = Pose(p, feet: CGPoint(x: x, y: Stage.floorY), facing: p.facing, now: now)
     // Stop above where the alien head will finish growing, so it never pokes into the saucer.
     let target = CGPoint(x: x, y: pose.head.y - pose.hr * 2.1)
-    let home = Stage.saucerHome
+    let home = d.saucerFrom ?? Stage.saucerHome
     let (phase, u) = BoothRun.phase(now.timeIntervalSince(d.boothT0), flight: d.saucerFlight)
     func ease(_ u: Double) -> Double { u * u * (3 - 2 * u) }
     let out: Double = switch phase {

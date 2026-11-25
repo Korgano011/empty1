@@ -92,6 +92,9 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.4), value: director.poker == nil)
+        #if DEBUG
+        .task { if ProcessInfo.processInfo.arguments.contains("-demoBeamHome") { director.startBeamHomeDemo() } }
+        #endif
         .sheet(isPresented: $showAlbum) {
             AlbumView(album: director.album)
         }
