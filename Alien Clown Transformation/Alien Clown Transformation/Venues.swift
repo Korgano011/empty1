@@ -12,7 +12,8 @@ extension Venue {
     var accent: Color {
         switch self {
         case .wildwood: Color(red: 0.95, green: 0.30, blue: 0.55)
-        case .lasVegas: Color(red: 0.80, green: 0.10, blue: 0.45)
+        case .oceanCity: Color(red: 0.10, green: 0.35, blue: 0.70)
+        case .greatStirrupCay: Color(red: 0.00, green: 0.48, blue: 0.72)
         case .nassau: Color(red: 0.00, green: 0.55, blue: 0.62)
         case .bimini: Color(red: 0.08, green: 0.42, blue: 0.70)
         case .cocoCay: Color(red: 0.00, green: 0.60, blue: 0.65)
@@ -24,7 +25,7 @@ extension Venue {
         }
     }
 
-    var banner: String { "ALIEN CLOWN TRANSFORMATIONS  ·  \(shortName.uppercased())  ·  $\(price)  ·  KIDS $\(kidPrice)" }
+    var banner: String { "S.S. BIG TOP CRUISES  ·  \(shortName.uppercased())  ·  $\(price)  ·  KIDS $\(kidPrice)" }
 }
 
 func drawVenue(_ ctx: GraphicsContext, _ venue: Venue, now: Date) {
@@ -32,7 +33,8 @@ func drawVenue(_ ctx: GraphicsContext, _ venue: Venue, now: Date) {
     drawSky(ctx)
     switch venue {
     case .wildwood: drawWildwood(ctx, t: t)
-    case .lasVegas: drawLasVegas(ctx, t: t)
+    case .oceanCity: drawOceanCity(ctx, t: t)
+    case .greatStirrupCay: drawGreatStirrupCay(ctx, t: t)
     case .nassau: drawNassau(ctx, t: t)
     case .bimini: drawBimini(ctx, t: t)
     case .cocoCay: drawCocoCay(ctx, t: t)
@@ -42,15 +44,53 @@ func drawVenue(_ ctx: GraphicsContext, _ venue: Venue, now: Date) {
     case .paris: drawParis(ctx, t: t)
     case .laBufadora: drawLaBufadora(ctx, t: t)
     }
-    // A sawdust ring under the tent, glowing pink
-    let x = Stage.venueTentX
-    ctx.fill(Path(ellipseIn: CGRect(x: x - 130, y: Stage.floorY - 6, width: 260, height: 22)), with: .color(Color(red: 0.80, green: 0.66, blue: 0.44)))
-    ctx.stroke(Path(ellipseIn: CGRect(x: x - 120, y: Stage.floorY - 2, width: 240, height: 14)), with: .color(Color(red: 1, green: 0.35, blue: 0.70)), lineWidth: 2)
+    drawHarbor(ctx, t: t)
     let label = ctx.resolve(Text(venue.banner).font(.system(size: 20, weight: .black, design: .rounded)).foregroundStyle(.white))
     let size = label.measure(in: CGSize(width: 1200, height: 60))
     let r = CGRect(x: 600 - size.width / 2 - 16, y: 18, width: size.width + 32, height: size.height + 12)
     fill(ctx, r, venue.accent.opacity(0.9), corner: r.height / 2)
     ctx.draw(label, at: CGPoint(x: r.midX, y: r.midY))
+}
+
+/// The cruise terminal at every port: a basin of harbour water on the left where the S.S. Big Top ties up,
+/// and a stone quay along the front with bollards, where the gangway comes down.
+private func drawHarbor(_ ctx: GraphicsContext, t: Double) {
+    let top = 352.0, quay = 452.0, right = 620.0
+    var basin = Path()
+    basin.move(to: CGPoint(x: 0, y: top))
+    basin.addLine(to: CGPoint(x: right - 40, y: top))
+    basin.addQuadCurve(to: CGPoint(x: right, y: quay), control: CGPoint(x: right, y: top))
+    basin.addLine(to: CGPoint(x: 0, y: quay))
+    basin.closeSubpath()
+    ctx.fill(basin, with: .linearGradient(Gradient(colors: [Color(red: 0.12, green: 0.42, blue: 0.70), Color(red: 0.28, green: 0.64, blue: 0.80)]),
+                                          startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: quay)))
+    var waves = ctx
+    waves.clip(to: basin)
+    for k in 0..<5 {
+        var wave = Path()
+        let y = top + 12 + Double(k) * 19
+        for x in stride(from: 0.0, through: right, by: 10) {
+            let pt = CGPoint(x: x, y: y + sin(x / 26 + t * 1.4 + Double(k)) * 2)
+            x == 0 ? wave.move(to: pt) : wave.addLine(to: pt)
+        }
+        waves.stroke(wave, with: .color(.white.opacity(0.3)), lineWidth: 1.3)
+    }
+    // The quay: a stone apron with a dark edge and a row of bollards
+    fill(ctx, CGRect(x: 0, y: quay, width: right + 60, height: Stage.floorY - quay + 4), Color(red: 0.70, green: 0.68, blue: 0.64))
+    fill(ctx, CGRect(x: 0, y: quay, width: right + 60, height: 5), Color(red: 0.42, green: 0.40, blue: 0.38))
+    for x in stride(from: 30.0, to: right + 60, by: 48) {
+        fill(ctx, CGRect(x: x, y: quay + 8, width: 1.2, height: Stage.floorY - quay - 8), Color(white: 0.55))
+    }
+    for x in [70.0, 250.0, 430.0] {
+        fill(ctx, CGRect(x: x - 7, y: quay + 4, width: 14, height: 16), Color(red: 0.22, green: 0.22, blue: 0.26), corner: 4)
+        fill(ctx, CGRect(x: x - 10, y: quay + 2, width: 20, height: 5), Color(red: 0.30, green: 0.30, blue: 0.34), corner: 2)
+    }
+    // A little sign by the gangway
+    let sx = Stage.venueTentX + Stage.gangwayFootDX + 40
+    fill(ctx, CGRect(x: sx - 1.5, y: Stage.floorY - 70, width: 3, height: 70), Color(red: 0.45, green: 0.30, blue: 0.18))
+    fill(ctx, CGRect(x: sx - 34, y: Stage.floorY - 92, width: 68, height: 26), Color(red: 1.0, green: 0.35, blue: 0.70), corner: 4)
+    ctx.draw(Text("S.S. BIG TOP\nBOARDING").font(.system(size: 8, weight: .black, design: .rounded)).foregroundStyle(.white),
+             at: CGPoint(x: sx, y: Stage.floorY - 79))
 }
 
 private func grass(_ ctx: GraphicsContext) {
@@ -254,126 +294,191 @@ private func sign(_ ctx: GraphicsContext, _ text: String, at r: CGRect, bg: Colo
              at: CGPoint(x: r.midX, y: r.midY))
 }
 
-// MARK: Las Vegas and St. Kitts
+// MARK: Ocean City, Great Stirrup Cay and St. Kitts
 
-/// Downtown Las Vegas at dusk: casino fronts with chasing marquee bulbs, the glowing canopy over Fremont Street,
-/// and a waving neon cowboy.
-private func drawLasVegas(_ ctx: GraphicsContext, t: Double) {
-    // Desert dusk painted over the daytime sky
-    ctx.fill(Path(CGRect(x: 0, y: 0, width: Stage.W, height: 405)),
-             with: .linearGradient(Gradient(colors: [Color(red: 0.16, green: 0.10, blue: 0.36), Color(red: 0.62, green: 0.26, blue: 0.50),
-                                                     Color(red: 0.98, green: 0.62, blue: 0.32)]),
-                                   startPoint: .zero, endPoint: CGPoint(x: 0, y: 405)))
-    for i in 0..<24 {
-        let p = CGPoint(x: Double((i * 97 + 40) % 1200), y: 60 + Double((i * 53) % 110))
-        ctx.fill(circle(p, 1.5), with: .color(.white.opacity(0.45 + 0.35 * sin(t * 2 + Double(i)))))
-    }
-    // Mountains on the horizon
-    var ridge = Path()
-    ridge.move(to: CGPoint(x: 0, y: 320))
-    for (x, y) in [(120.0, 270.0), (260.0, 300.0), (420.0, 255.0), (600.0, 295.0), (820.0, 262.0), (1010.0, 290.0), (1200.0, 258.0)] {
-        ridge.addLine(to: CGPoint(x: x, y: y))
-    }
-    ridge.addLine(to: CGPoint(x: Stage.W, y: 405))
-    ridge.addLine(to: CGPoint(x: 0, y: 405))
-    ridge.closeSubpath()
-    ctx.fill(ridge, with: .color(Color(red: 0.30, green: 0.16, blue: 0.36)))
+/// Ocean City, New Jersey: the boardwalk, the Spanish-style Music Pier with its red tile roof,
+/// a Ferris wheel on the amusement pier, taffy and fudge shops, and a lifeguard stand on the sand.
+private func drawOceanCity(_ ctx: GraphicsContext, t: Double) {
+    sea(ctx, t: t, top: 300, color: Color(red: 0.18, green: 0.48, blue: 0.70))
+    fill(ctx, CGRect(x: 0, y: 360, width: Stage.W, height: 50), Color(red: 0.95, green: 0.88, blue: 0.70))
 
-    let pink = Color(red: 1.00, green: 0.30, blue: 0.65)
-    let gold = Color(red: 1.00, green: 0.82, blue: 0.20)
-    let cyan = Color(red: 0.30, green: 0.95, blue: 1.00)
-
-    // Fremont Street running away under its barrel-vault canopy of lights
-    let cx = 795.0
-    fill(ctx, CGRect(x: cx - 30, y: 250, width: 60, height: 155), Color(red: 0.20, green: 0.14, blue: 0.30))
-    for row in 0..<9 {
-        for col in 0..<4 where (row + col * 3) % 4 != 0 {
-            fill(ctx, CGRect(x: cx - 24 + Double(col) * 13, y: 276 + Double(row) * 14, width: 8, height: 7), gold.opacity(0.85))
-        }
+    // The Music Pier: cream stucco, arched windows, a red tile roof and a little tower over the entrance
+    let stucco = Color(red: 0.98, green: 0.93, blue: 0.80)
+    let tile = Color(red: 0.78, green: 0.30, blue: 0.20)
+    fill(ctx, CGRect(x: 640, y: 290, width: 260, height: 115), stucco)
+    var roof = Path()
+    roof.move(to: CGPoint(x: 628, y: 292))
+    roof.addLine(to: CGPoint(x: 660, y: 262))
+    roof.addLine(to: CGPoint(x: 880, y: 262))
+    roof.addLine(to: CGPoint(x: 912, y: 292))
+    roof.closeSubpath()
+    ctx.fill(roof, with: .color(tile))
+    for x in stride(from: 664.0, to: 880, by: 10) { fill(ctx, CGRect(x: x, y: 264, width: 1.5, height: 26), Color(red: 0.62, green: 0.22, blue: 0.15)) }
+    fill(ctx, CGRect(x: 744, y: 222, width: 52, height: 42), stucco)
+    var cap = Path()
+    cap.move(to: CGPoint(x: 738, y: 224))
+    cap.addLine(to: CGPoint(x: 770, y: 198))
+    cap.addLine(to: CGPoint(x: 802, y: 224))
+    cap.closeSubpath()
+    ctx.fill(cap, with: .color(tile))
+    ctx.fill(circle(CGPoint(x: 770, y: 242), 9), with: .color(Color(red: 0.30, green: 0.50, blue: 0.75)))
+    for x in stride(from: 656.0, to: 890, by: 30) {
+        var arch = Path()
+        arch.addRoundedRect(in: CGRect(x: x, y: 318, width: 20, height: 34), cornerSize: CGSize(width: 10, height: 10))
+        ctx.fill(arch, with: .color(Color(red: 0.30, green: 0.50, blue: 0.75)))
     }
-    fill(ctx, CGRect(x: cx - 34, y: 252, width: 68, height: 16), pink, corner: 3)
-    ctx.draw(Text("HOTEL").font(.system(size: 11, weight: .black, design: .rounded)).foregroundStyle(.white), at: CGPoint(x: cx, y: 260))
+    fill(ctx, CGRect(x: 700, y: 296, width: 140, height: 18), Color(red: 0.10, green: 0.35, blue: 0.70), corner: 4)
+    ctx.draw(Text("MUSIC PIER").font(.system(size: 12, weight: .black, design: .rounded)).foregroundStyle(.white), at: CGPoint(x: 770, y: 305))
+    for x in [652.0, 888] { fill(ctx, CGRect(x: x - 6, y: 360, width: 12, height: 45), stucco) }
+
+    // The Ferris wheel on the amusement pier
+    let hub = CGPoint(x: 1065, y: 225)
+    let r = 100.0
     for side in [-1.0, 1.0] {
-        var wall = Path()
-        wall.move(to: CGPoint(x: cx + side * 190, y: 405))
-        wall.addLine(to: CGPoint(x: cx + side * 190, y: 290))
-        wall.addLine(to: CGPoint(x: cx + side * 30, y: 345))
-        wall.addLine(to: CGPoint(x: cx + side * 30, y: 405))
-        wall.closeSubpath()
-        ctx.fill(wall, with: .color(Color(red: 0.24, green: 0.14, blue: 0.34)))
-        for (k, c) in [pink, cyan, gold].enumerated() {
-            var strip = Path()
-            strip.move(to: CGPoint(x: cx + side * 186, y: 312 + Double(k) * 26))
-            strip.addLine(to: CGPoint(x: cx + side * 34, y: 354 + Double(k) * 14))
-            ctx.stroke(strip, with: .color(c.opacity(0.6 + 0.4 * sin(t * 3 + Double(k) * 2))), lineWidth: 3)
-        }
+        var leg = Path()
+        leg.move(to: hub)
+        leg.addLine(to: CGPoint(x: hub.x + side * 52, y: 405))
+        ctx.stroke(leg, with: .color(Color(white: 0.88)), lineWidth: 6)
     }
-    func arc(_ rx: Double, _ ry: Double, _ deg: Double) -> CGPoint {
-        CGPoint(x: cx + cos(deg * .pi / 180) * rx, y: 405 + sin(deg * .pi / 180) * ry)
+    ctx.stroke(circle(hub, r), with: .color(Color(red: 0.10, green: 0.35, blue: 0.70)), lineWidth: 5)
+    let spin = t * 0.22
+    let cars: [Color] = [.red, .yellow, Color(red: 0.20, green: 0.70, blue: 0.40), .orange, .pink, .cyan]
+    for i in 0..<12 {
+        let a = spin + Double(i) / 12 * 2 * .pi
+        let rim = CGPoint(x: hub.x + cos(a) * r, y: hub.y + sin(a) * r)
+        var spoke = Path()
+        spoke.move(to: hub)
+        spoke.addLine(to: rim)
+        ctx.stroke(spoke, with: .color(.white.opacity(0.85)), lineWidth: 1.5)
+        // Rim lights chase round after dark... and in daylight too
+        ctx.fill(circle(rim, 2.5), with: .color((i + Int(t * 4)) % 3 == 0 ? .white : .yellow))
+        fill(ctx, CGRect(x: rim.x - 8, y: rim.y + 2, width: 16, height: 13), cars[i % cars.count], corner: 4)
     }
-    var canopy = Path()
-    canopy.move(to: arc(215, 235, 180))
-    for deg in stride(from: 180.0, through: 360, by: 4) { canopy.addLine(to: arc(215, 235, deg)) }
-    for deg in stride(from: 360.0, through: 180, by: -4) { canopy.addLine(to: arc(190, 205, deg)) }
-    canopy.closeSubpath()
-    ctx.fill(canopy, with: .color(Color(red: 0.08, green: 0.06, blue: 0.18)))
-    // The light show sweeps across the canopy
-    for i in 0...30 {
-        for j in 0..<3 {
-            let hue = (Double(i) / 30 + Double(j) * 0.08 + t * 0.15).truncatingRemainder(dividingBy: 1)
-            ctx.fill(circle(arc(195 + Double(j) * 7.5, 211 + Double(j) * 9, 180 + Double(i) * 6), 3),
-                     with: .color(Color(hue: hue, saturation: 0.85, brightness: 1)))
-        }
-    }
+    ctx.fill(circle(hub, 9), with: .color(Color(red: 0.95, green: 0.30, blue: 0.30)))
 
-    // Casino fronts with lit windows, neon signs and chasing bulbs along the roof
-    let fronts: [(x: Double, w: Double, top: Double, wall: Color, name: String, neon: Color)] = [
-        (0, 170, 322, Color(red: 0.30, green: 0.18, blue: 0.40), "MOTEL", cyan),
-        (180, 230, 306, Color(red: 0.36, green: 0.16, blue: 0.34), "WEDDING CHAPEL", pink),
-        (425, 150, 215, Color(red: 0.26, green: 0.14, blue: 0.38), "CASINO", gold),
-        (1015, 185, 195, Color(red: 0.34, green: 0.14, blue: 0.30), "SLOTS", cyan),
+    // The lifeguard stand on the beach, OCBP on the side
+    let lg = 945.0
+    for dx in [0.0, 30] {
+        var leg = Path()
+        leg.move(to: CGPoint(x: lg + dx, y: 404))
+        leg.addLine(to: CGPoint(x: lg + 15 + (dx - 15) * 0.6, y: 340))
+        ctx.stroke(leg, with: .color(.white), lineWidth: 4)
+    }
+    fill(ctx, CGRect(x: lg - 2, y: 332, width: 34, height: 12), .white, corner: 2)
+    ctx.draw(Text("OCBP").font(.system(size: 8, weight: .black, design: .rounded)).foregroundStyle(.red), at: CGPoint(x: lg + 15, y: 338))
+    fill(ctx, CGRect(x: lg + 13, y: 300, width: 3, height: 32), .white)
+    var flag = Path()
+    flag.move(to: CGPoint(x: lg + 16, y: 300))
+    flag.addLine(to: CGPoint(x: lg + 34 + sin(t * 3) * 2, y: 306))
+    flag.addLine(to: CGPoint(x: lg + 16, y: 312))
+    flag.closeSubpath()
+    ctx.fill(flag, with: .color(.red))
+
+    // Boardwalk shops: salt water taffy, fudge and fries
+    let shops: [(x: Double, w: Double, wall: Color, name: String, awning: Color)] = [
+        (0, 110, Color(red: 0.98, green: 0.88, blue: 0.92), "TAFFY", Color(red: 0.90, green: 0.35, blue: 0.60)),
+        (114, 100, Color(red: 0.92, green: 0.88, blue: 0.75), "FUDGE", Color(red: 0.55, green: 0.32, blue: 0.20)),
+        (1140, 60, Color(red: 0.98, green: 0.95, blue: 0.75), "FRIES", Color(red: 0.95, green: 0.65, blue: 0.10)),
     ]
-    for (i, f) in fronts.enumerated() {
-        fill(ctx, CGRect(x: f.x, y: f.top, width: f.w, height: 405 - f.top), f.wall)
-        for (r, y) in stride(from: f.top + 44, to: 385, by: 18).enumerated() {
-            for (c, x) in stride(from: f.x + 10, to: f.x + f.w - 14, by: 18).enumerated() where (r * 2 + c + i) % 3 != 0 {
-                fill(ctx, CGRect(x: x, y: y, width: 10, height: 9), gold.opacity(0.75))
-            }
+    for shop in shops {
+        fill(ctx, CGRect(x: shop.x, y: 310, width: shop.w, height: 95), shop.wall)
+        fill(ctx, CGRect(x: shop.x + 6, y: 316, width: shop.w - 12, height: 20), shop.awning, corner: 4)
+        ctx.draw(Text(shop.name).font(.system(size: 12, weight: .black, design: .rounded)).foregroundStyle(.white), at: CGPoint(x: shop.x + shop.w / 2, y: 326))
+        for k in 0..<Int(shop.w / 14) {
+            fill(ctx, CGRect(x: shop.x + Double(k) * 14, y: 342, width: 14, height: 14), k % 2 == 0 ? shop.awning : .white)
         }
-        let board = CGRect(x: f.x + 10, y: f.top + 10, width: f.w - 20, height: 26)
-        fill(ctx, board, Color(red: 0.08, green: 0.05, blue: 0.14), corner: 5)
-        ctx.stroke(Path(roundedRect: board, cornerRadius: 5), with: .color(f.neon), lineWidth: 2)
-        ctx.draw(Text(f.name).font(.system(size: f.name.count > 8 ? 13 : 17, weight: .black, design: .rounded)).foregroundStyle(f.neon),
-                 at: CGPoint(x: board.midX, y: board.midY))
-        for (k, x) in stride(from: f.x + 4, through: f.x + f.w - 4, by: 12).enumerated() {
-            let on = (k + Int(t * 6)) % 3 == 0
-            ctx.fill(circle(CGPoint(x: x, y: f.top), 3), with: .color(on ? .white : gold.opacity(0.5)))
-        }
+        fill(ctx, CGRect(x: shop.x + 10, y: 362, width: shop.w - 20, height: 30), Color(red: 0.30, green: 0.25, blue: 0.25), corner: 2)
     }
 
-    // The neon cowboy waving from the casino roof
-    let vic = CGPoint(x: 500, y: 215)
-    let glow = 0.75 + 0.25 * sin(t * 5)
-    fill(ctx, CGRect(x: vic.x - 16, y: vic.y - 62, width: 32, height: 62), Color(red: 0.95, green: 0.80, blue: 0.20).opacity(glow), corner: 6)
-    for k in 0..<3 { fill(ctx, CGRect(x: vic.x - 16, y: vic.y - 50 + Double(k) * 16, width: 32, height: 3), Color(red: 0.85, green: 0.20, blue: 0.20)) }
-    ctx.fill(circle(CGPoint(x: vic.x, y: vic.y - 74), 12), with: .color(Color(red: 1.00, green: 0.78, blue: 0.62)))
-    fill(ctx, CGRect(x: vic.x - 24, y: vic.y - 88, width: 48, height: 6), cyan.opacity(glow), corner: 3)
-    fill(ctx, CGRect(x: vic.x - 12, y: vic.y - 104, width: 24, height: 18), cyan.opacity(glow), corner: 5)
-    fill(ctx, CGRect(x: vic.x - 9, y: vic.y - 62, width: 18, height: 8), Color(red: 0.85, green: 0.20, blue: 0.20), corner: 3)
-    let wave = -0.9 + sin(t * 2.5) * 0.45
-    var arm = Path()
-    arm.move(to: CGPoint(x: vic.x + 14, y: vic.y - 52))
-    arm.addLine(to: CGPoint(x: vic.x + 14 + cos(wave) * 38, y: vic.y - 52 + sin(wave) * 38))
-    ctx.stroke(arm, with: .color(Color(red: 0.95, green: 0.80, blue: 0.20).opacity(glow)), style: StrokeStyle(lineWidth: 9, lineCap: .round))
-    ctx.fill(circle(CGPoint(x: vic.x + 14 + cos(wave) * 42, y: vic.y - 52 + sin(wave) * 42), 6), with: .color(Color(red: 1.00, green: 0.78, blue: 0.62)))
+    // The boards and the railing
+    fill(ctx, CGRect(x: 0, y: 405, width: Stage.W, height: Stage.H - 405), Color(red: 0.72, green: 0.58, blue: 0.40))
+    for x in stride(from: 0.0, to: Stage.W, by: 26) { fill(ctx, CGRect(x: x, y: 405, width: 1.5, height: Stage.H - 405), Color(red: 0.58, green: 0.45, blue: 0.30)) }
+    fill(ctx, CGRect(x: 0, y: 398, width: Stage.W, height: 3), Color(white: 0.92))
+    for x in stride(from: 0.0, to: Stage.W, by: 40) { fill(ctx, CGRect(x: x, y: 398, width: 3, height: 12), Color(white: 0.92)) }
+    // A surrey bike pedalling along the boards
+    let bx = (t * 38).truncatingRemainder(dividingBy: Stage.W + 200) - 100
+    fill(ctx, CGRect(x: bx, y: 414, width: 60, height: 10), Color(red: 0.10, green: 0.35, blue: 0.70), corner: 3)
+    for k in 0..<8 { fill(ctx, CGRect(x: bx - 4 + Double(k) * 9, y: 396, width: 9, height: 6), k % 2 == 0 ? .red : .white) }
+    for px in [bx, bx + 58] { fill(ctx, CGRect(x: px, y: 400, width: 2, height: 14), Color(white: 0.85)) }
+    for wx in [bx + 10, bx + 50] { ctx.stroke(circle(CGPoint(x: wx, y: 430), 7), with: .color(Color(white: 0.15)), lineWidth: 2.5) }
+    sign(ctx, "OCEAN CITY · AMERICA'S GREATEST FAMILY RESORT", at: CGRect(x: 655, y: 366, width: 230, height: 22),
+         bg: Color(red: 0.10, green: 0.35, blue: 0.70), size: 9)
+    gulls(ctx, t: t)
+}
 
-    // Pavement, with the neon shining off it
-    fill(ctx, CGRect(x: 0, y: 405, width: Stage.W, height: Stage.H - 405), Color(red: 0.30, green: 0.28, blue: 0.34))
-    for x in stride(from: 0.0, to: Stage.W, by: 60) { fill(ctx, CGRect(x: x, y: 405, width: 2, height: Stage.H - 405), Color(red: 0.24, green: 0.22, blue: 0.28)) }
-    for (k, c) in [cyan, pink, gold, pink, cyan, gold].enumerated() {
-        fill(ctx, CGRect(x: 60 + Double(k) * 200, y: 410, width: 90, height: 5), c.opacity(0.12 + 0.06 * sin(t * 3 + Double(k))), corner: 2)
+/// Great Stirrup Cay in the Berry Islands: turquoise shallows, the old white lighthouse on its rocky point,
+/// a tender boat shuttling to a ship anchored offshore, beach cabanas, hammocks and palms.
+private func drawGreatStirrupCay(_ ctx: GraphicsContext, t: Double) {
+    sea(ctx, t: t, top: 285, color: Color(red: 0.22, green: 0.80, blue: 0.84))
+    fill(ctx, CGRect(x: 0, y: 285, width: Stage.W, height: 24), Color(red: 0.06, green: 0.40, blue: 0.72))
+    // A ship at anchor out on the deep blue, its tender boat running back and forth
+    cruiseShip(ctx, x: 620, waterline: 300, width: 300, hull: Color(red: 0.10, green: 0.20, blue: 0.45), t: t) { ctx, r in
+        fill(ctx, r, .white, corner: 3)
+        fill(ctx, CGRect(x: r.minX, y: r.minY + 6, width: r.width, height: 5), Color(red: 0.10, green: 0.45, blue: 0.80))
     }
-    sign(ctx, "FREMONT STREET", at: CGRect(x: 30, y: 350, width: 130, height: 26), bg: Color(red: 0.80, green: 0.10, blue: 0.45))
+    let run = (t * 0.06).truncatingRemainder(dividingBy: 2)
+    let u = run < 1 ? run : 2 - run
+    let tx = 900 - u * 200, ty = 312 + u * 40
+    fill(ctx, CGRect(x: tx, y: ty, width: 46, height: 11), .white, corner: 5)
+    fill(ctx, CGRect(x: tx + 8, y: ty - 9, width: 30, height: 10), Color(red: 0.98, green: 0.80, blue: 0.20), corner: 3)
+
+    // The rocky point and the 1863 lighthouse
+    var point = Path()
+    point.move(to: CGPoint(x: 960, y: 330))
+    point.addQuadCurve(to: CGPoint(x: Stage.W, y: 250), control: CGPoint(x: 1060, y: 250))
+    point.addLine(to: CGPoint(x: Stage.W, y: 340))
+    point.closeSubpath()
+    ctx.fill(point, with: .color(Color(red: 0.62, green: 0.58, blue: 0.48)))
+    for (x, y, rr) in [(1010.0, 300.0, 22.0), (1150.0, 262.0, 30.0), (1185.0, 290.0, 26.0)] {
+        ctx.fill(circle(CGPoint(x: x, y: y), rr), with: .color(Color(red: 0.25, green: 0.55, blue: 0.28)))
+    }
+    let lx = 1095.0
+    var tower = Path()
+    tower.move(to: CGPoint(x: lx - 16, y: 262))
+    tower.addLine(to: CGPoint(x: lx - 10, y: 130))
+    tower.addLine(to: CGPoint(x: lx + 10, y: 130))
+    tower.addLine(to: CGPoint(x: lx + 16, y: 262))
+    tower.closeSubpath()
+    ctx.fill(tower, with: .color(.white))
+    fill(ctx, CGRect(x: lx - 16, y: 120, width: 32, height: 10), Color(white: 0.25), corner: 2)
+    fill(ctx, CGRect(x: lx - 9, y: 102, width: 18, height: 18), Color(red: 1, green: 0.95, blue: 0.60).opacity(0.7 + 0.3 * sin(t * 2)), corner: 2)
+    var dome = Path()
+    dome.addArc(center: CGPoint(x: lx, y: 102), radius: 11, startAngle: .degrees(180), endAngle: .zero, clockwise: false)
+    ctx.fill(dome, with: .color(Color(white: 0.25)))
+    for y in [170.0, 215] { fill(ctx, CGRect(x: lx - 4, y: y, width: 8, height: 12), Color(white: 0.35), corner: 2) }
+    // The lamp's beam sweeping round
+    let beam = sin(t * 0.8)
+    var ray = Path()
+    ray.move(to: CGPoint(x: lx, y: 111))
+    ray.addLine(to: CGPoint(x: lx + beam * 160, y: 90))
+    ray.addLine(to: CGPoint(x: lx + beam * 160, y: 130))
+    ray.closeSubpath()
+    ctx.fill(ray, with: .color(.white.opacity(0.18 * abs(beam))))
+
+    // White sand, beach cabanas and a hammock between palms
+    fill(ctx, CGRect(x: 0, y: 360, width: Stage.W, height: 50), Color(red: 0.99, green: 0.96, blue: 0.88))
+    fill(ctx, CGRect(x: 0, y: 405, width: Stage.W, height: Stage.H - 405), Color(red: 0.98, green: 0.94, blue: 0.84))
+    for (i, c) in [Color(red: 0.10, green: 0.45, blue: 0.80), Color(red: 0.95, green: 0.55, blue: 0.20)].enumerated() {
+        let x = 770 + Double(i) * 86
+        fill(ctx, CGRect(x: x, y: 342, width: 72, height: 56), .white, corner: 2)
+        var top = Path()
+        top.move(to: CGPoint(x: x - 6, y: 344))
+        top.addLine(to: CGPoint(x: x + 36, y: 318))
+        top.addLine(to: CGPoint(x: x + 78, y: 344))
+        top.closeSubpath()
+        ctx.fill(top, with: .color(c))
+        for k in 0..<4 { fill(ctx, CGRect(x: x + 4 + Double(k) * 17, y: 346, width: 8, height: 50), c.opacity(0.35)) }
+    }
+    palm(ctx, x: 940, base: 404, height: 140, t: t)
+    palm(ctx, x: 1150, base: 404, height: 120, t: t + 1.5)
+    var hammock = Path()
+    hammock.move(to: CGPoint(x: 962, y: 330))
+    hammock.addQuadCurve(to: CGPoint(x: 1150, y: 340), control: CGPoint(x: 1056, y: 372 + sin(t * 1.2) * 4))
+    ctx.stroke(hammock, with: .color(Color(red: 0.95, green: 0.35, blue: 0.40)), style: StrokeStyle(lineWidth: 6, lineCap: .round))
+    beachUmbrella(ctx, x: 1060, Color(red: 0.98, green: 0.80, blue: 0.20))
+    sign(ctx, "GREAT STIRRUP CAY", at: CGRect(x: 630, y: 344, width: 120, height: 26),
+         bg: Color(red: 0.00, green: 0.48, blue: 0.72), size: 10)
+    gulls(ctx, t: t)
 }
 
 /// St. Kitts: cloud-capped Mount Liamuiga, Brimstone Hill Fortress on its hill, a cruise ship off Basseterre,
@@ -1157,7 +1262,7 @@ func drawTown(_ ctx: GraphicsContext, now: Date) {
     ctx.fill(circle(CGPoint(x: 65, y: 345), 36 + sin(t) * 1), with: .color(Color(red: 0.25, green: 0.55, blue: 0.28)))
 }
 
-/// Further along Main Street: the accessory store, and the dealer's showroom next door.
+/// Further along Main Street: the ship-supply shop that sells cruise ship upgrades, and the dealer's showroom next door.
 func drawShops(_ ctx: GraphicsContext, now: Date) {
     let t = now.timeIntervalSinceReferenceDate
     drawSky(ctx)
@@ -1168,43 +1273,58 @@ func drawShops(_ ctx: GraphicsContext, now: Date) {
     fill(ctx, CGRect(x: 0, y: 508, width: Stage.W, height: Stage.H - 508), Color(white: 0.30))
     for x in stride(from: 20.0, to: Stage.W, by: 90) { fill(ctx, CGRect(x: x, y: 552, width: 44, height: 5), Color(red: 1, green: 0.85, blue: 0.2)) }
 
-    // The accessory store
-    let pink = Color(red: 0.88, green: 0.20, blue: 0.48)
+    // The ship-supply shop: navy clapboard, a rope trim and a striped awning
+    let navy = Color(red: 0.10, green: 0.22, blue: 0.48)
+    let rope = Color(red: 0.86, green: 0.72, blue: 0.48)
     let store = CGRect(x: 120, y: 240, width: 380, height: 200)
-    fill(ctx, store, Color(red: 1.0, green: 0.88, blue: 0.92))
-    fill(ctx, CGRect(x: store.minX - 8, y: store.minY - 10, width: store.width + 16, height: 14), pink)
-    fill(ctx, CGRect(x: store.minX + 30, y: 254, width: 320, height: 44), pink, corner: 22)
-    ctx.draw(Text("GLITZ ACCESSORIES").font(.system(size: 25, weight: .black, design: .rounded)).foregroundStyle(.white),
-             at: CGPoint(x: store.midX, y: 276))
+    fill(ctx, store, Color(red: 0.86, green: 0.92, blue: 0.98))
+    for k in 0..<10 { fill(ctx, CGRect(x: store.minX, y: store.minY + 70 + Double(k) * 13, width: store.width, height: 1.2), Color(red: 0.70, green: 0.80, blue: 0.90)) }
+    fill(ctx, CGRect(x: store.minX - 8, y: store.minY - 10, width: store.width + 16, height: 14), navy)
+    fill(ctx, CGRect(x: store.minX + 20, y: 250, width: 340, height: 52), navy, corner: 10)
+    ctx.stroke(Path(roundedRect: CGRect(x: store.minX + 24, y: 254, width: 332, height: 44), cornerRadius: 8), with: .color(rope), lineWidth: 2.5)
+    ctx.draw(Text("SHIPSHAPE").font(.system(size: 22, weight: .black, design: .rounded)).foregroundStyle(.white),
+             at: CGPoint(x: store.midX, y: 268))
+    ctx.draw(Text("CRUISE SHIP UPGRADES").font(.system(size: 12, weight: .heavy, design: .rounded)).foregroundStyle(rope),
+             at: CGPoint(x: store.midX, y: 288))
     for k in 0..<19 {
-        ctx.fill(circle(CGPoint(x: store.minX + 10 + Double(k) * 20, y: 318), 10), with: .color(k % 2 == 0 ? pink : .white))
+        ctx.fill(circle(CGPoint(x: store.minX + 10 + Double(k) * 20, y: 318), 10), with: .color(k % 2 == 0 ? navy : .white))
     }
-    fill(ctx, CGRect(x: store.minX, y: 306, width: store.width, height: 12), pink)
-    // Window displays: a sun hat and sunglasses on one side, a handbag and a necklace on the other
+    fill(ctx, CGRect(x: store.minX, y: 306, width: store.width, height: 12), navy)
+    // Window displays: a life ring on one side, a little model ship in a bottle-green case on the other
     let left = CGRect(x: store.minX + 20, y: 344, width: 120, height: 72)
     let right = CGRect(x: store.maxX - 140, y: 344, width: 120, height: 72)
     for w in [left, right] {
         fill(ctx, w, Color(red: 0.80, green: 0.92, blue: 0.98))
         fill(ctx, CGRect(x: w.minX, y: w.maxY - 10, width: w.width, height: 10), .white)
-        ctx.stroke(Path(w), with: .color(.white), lineWidth: 4)
+        ctx.stroke(Path(w), with: .color(rope), lineWidth: 4)
     }
-    let straw = Color(red: 0.93, green: 0.80, blue: 0.52)
-    fill(ctx, CGRect(x: left.minX + 22, y: left.maxY - 38, width: 26, height: 20), straw, corner: 8)
-    ctx.fill(Path(ellipseIn: CGRect(x: left.minX + 8, y: left.maxY - 24, width: 54, height: 12)), with: .color(straw))
-    fill(ctx, CGRect(x: left.minX + 22, y: left.maxY - 25, width: 26, height: 4), pink)
-    for dx in [0.0, 20] { fill(ctx, CGRect(x: left.minX + 72 + dx, y: left.maxY - 34, width: 17, height: 12), Color(white: 0.08), corner: 5) }
-    fill(ctx, CGRect(x: left.minX + 86, y: left.maxY - 31, width: 8, height: 2.5), Color(white: 0.08))
-    ctx.stroke(Path(ellipseIn: CGRect(x: right.minX + 20, y: right.maxY - 52, width: 24, height: 26)), with: .color(Color(red: 0.45, green: 0.22, blue: 0.12)), lineWidth: 3)
-    fill(ctx, CGRect(x: right.minX + 14, y: right.maxY - 38, width: 36, height: 27), Color(red: 0.75, green: 0.30, blue: 0.20), corner: 5)
-    for k in 0..<9 {
-        let ang = (20.0 + Double(k) * 17.5) * .pi / 180
-        ctx.fill(circle(CGPoint(x: right.minX + 86 + cos(ang) * 18, y: right.maxY - 50 + sin(ang) * 26), k == 4 ? 4 : 2.6),
-                 with: .color(k == 4 ? Color(red: 0.30, green: 0.75, blue: 0.95) : Color(red: 0.98, green: 0.82, blue: 0.25)))
+    let ring = CGPoint(x: left.midX, y: left.minY + 30)
+    for k in 0..<8 {
+        var arc = Path()
+        arc.addArc(center: ring, radius: 19, startAngle: .degrees(Double(k) * 45), endAngle: .degrees(Double(k + 1) * 45), clockwise: false)
+        ctx.stroke(arc, with: .color(k % 2 == 0 ? Color(red: 0.95, green: 0.35, blue: 0.20) : .white), lineWidth: 9)
     }
+    ctx.stroke(Path(ellipseIn: CGRect(x: ring.x - 24, y: ring.y - 24, width: 48, height: 48)), with: .color(rope), lineWidth: 1.5)
+    // The model ship: white hull with a pink stripe, a striped funnel, a tiny flag
+    let mx = right.midX, my = right.maxY - 20
+    var model = Path()
+    model.move(to: CGPoint(x: mx - 40, y: my - 14))
+    model.addLine(to: CGPoint(x: mx + 42, y: my - 16))
+    model.addLine(to: CGPoint(x: mx + 30, y: my))
+    model.addLine(to: CGPoint(x: mx - 36, y: my))
+    model.closeSubpath()
+    ctx.fill(model, with: .color(.white))
+    fill(ctx, CGRect(x: mx - 38, y: my - 7, width: 74, height: 3), Color(red: 1.0, green: 0.35, blue: 0.70))
+    fill(ctx, CGRect(x: mx - 28, y: my - 24, width: 48, height: 10), .white, corner: 2)
+    fill(ctx, CGRect(x: mx - 4, y: my - 38, width: 12, height: 14), Color(red: 0.86, green: 0.14, blue: 0.20))
+    fill(ctx, CGRect(x: mx - 4, y: my - 33, width: 12, height: 3), Color(red: 1.0, green: 0.95, blue: 0.84))
+    fill(ctx, CGRect(x: mx - 26, y: my - 44, width: 1.5, height: 20), Color(white: 0.6))
+    fill(ctx, CGRect(x: mx - 24.5, y: my - 44, width: 10, height: 6), Color(red: 1.0, green: 0.35, blue: 0.70))
     let door = CGRect(x: Stage.boutiqueDoorX - 28, y: 350, width: 56, height: 90)
     fill(ctx, door, Color(red: 0.60, green: 0.80, blue: 0.90))
-    ctx.stroke(Path(door), with: .color(pink), lineWidth: 4)
-    fill(ctx, CGRect(x: door.midX - 1.5, y: door.minY, width: 3, height: door.height), pink)
+    ctx.stroke(Path(door), with: .color(navy), lineWidth: 4)
+    ctx.stroke(Path(ellipseIn: CGRect(x: door.midX - 12, y: door.minY + 12, width: 24, height: 24)), with: .color(navy), lineWidth: 4)
+    fill(ctx, CGRect(x: door.midX - 1.5, y: door.minY + 36, width: 3, height: door.height - 36), navy)
 
     // The dealer: a glass showroom with a scooter and a car on the floor
     let lot = CGRect(x: 620, y: 270, width: 480, height: 170)
@@ -1247,373 +1367,275 @@ func drawShops(_ ctx: GraphicsContext, now: Date) {
     ctx.fill(circle(CGPoint(x: 1150, y: 345), 36 + sin(t) * 1), with: .color(Color(red: 0.25, green: 0.55, blue: 0.28)))
 }
 
-// MARK: The salon
+// MARK: Funland Amusement Park
 
-/// The front edge of each styling chair's seat, drawn over whoever sits in it so she reads as seated.
-func drawSalonChairFronts(_ ctx: GraphicsContext, cleared: Set<SalonItem>) {
-    for (i, x) in [100.0, Stage.stationX, 440].enumerated() where !cleared.contains(.chair(i)) {
-        let cx = x + Stage.salonChairOffset
-        fill(ctx, CGRect(x: cx - 36, y: 452, width: 72, height: 10), Color(red: 0.66, green: 0.08, blue: 0.17), corner: 4)
-    }
-}
-
-/// Snips of hair drifting down from the chair while Deidre cuts, then lying on the checkered floor.
-func drawClippings(_ ctx: GraphicsContext, _ c: (x: Double, y: Double, colors: [RGB], t0: Date, dur: Double), now: Date) {
-    let age = now.timeIntervalSince(c.t0)
-    let count = 18
-    for i in 0..<count {
-        let born = Double(i) / Double(count) * c.dur
-        guard age > born else { break }
-        let k = min(1, (age - born) / 1.4)
-        // Each snip starts at the side of the head and sways as it falls.
-        let side = i % 2 == 0 ? -1.0 : 1.0
-        let startX = c.x + side * (14 + Double(i * 7 % 11))
-        let endX = startX + side * Double(10 + i * 13 % 30)
-        let x = startX + (endX - startX) * k + sin(k * 9 + Double(i)) * 6 * (1 - k)
-        let y = c.y + 10 + (Stage.floorY - 4 - c.y - 10) * k * k
-        let angle = Double(i) * 0.9 + k * 3
-        var strand = Path()
-        strand.move(to: CGPoint(x: x - cos(angle) * 7, y: y - sin(angle) * 3))
-        strand.addQuadCurve(to: CGPoint(x: x + cos(angle) * 7, y: y + sin(angle) * 3), control: CGPoint(x: x, y: y - 4))
-        ctx.stroke(strand, with: .color(c.colors[i % c.colors.count].color), style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
-    }
-}
-
-/// Shear Elegance: styling stations on the left, the owner's glass-walled office on the right.
-/// The salon goes dark when the lights are switched off, but for a little streetlight spilling in by the door.
-func drawSalonLightsOut(_ ctx: GraphicsContext, since t0: Date, now: Date) {
-    let u = min(max(now.timeIntervalSince(t0) / 0.2, 0), 1)
-    fill(ctx, CGRect(x: 0, y: 0, width: Stage.W, height: Stage.H), Color(red: 0.03, green: 0.03, blue: 0.09).opacity(0.78 * u))
-    var spill = Path()
-    spill.move(to: CGPoint(x: 0, y: 230))
-    spill.addLine(to: CGPoint(x: 0, y: Stage.floorY))
-    spill.addLine(to: CGPoint(x: 260, y: Stage.H))
-    spill.addLine(to: CGPoint(x: 120, y: Stage.floorY))
-    spill.closeSubpath()
-    ctx.fill(spill, with: .color(Color(red: 1, green: 0.85, blue: 0.55).opacity(0.10 * u)))
-}
-
-/// Shear Elegance from the street at night: a glowing shop window, a neon sign, and the power meter
-/// on the side wall. Once `lightsOff` passes, the lever is down and the whole shop goes dark.
-func drawSalonFront(_ ctx: GraphicsContext, now: Date, lightsOff: Date?) {
+/// Deidre's job: the parking lot at Funland, down by the boardwalk, with the rides behind the fence.
+func drawPark(_ ctx: GraphicsContext, d: Director, now: Date) {
     let t = now.timeIntervalSinceReferenceDate
-    let off = lightsOff.map { min(max(now.timeIntervalSince($0) / 0.2, 0), 1) } ?? 0
-    let on = 1 - off
-    // Night sky and stars
-    ctx.fill(Path(CGRect(x: 0, y: 0, width: Stage.W, height: Stage.floorY)),
-             with: .linearGradient(Gradient(colors: [Color(red: 0.03, green: 0.04, blue: 0.16), Color(red: 0.10, green: 0.10, blue: 0.28)]),
-                                   startPoint: .zero, endPoint: CGPoint(x: 0, y: Stage.floorY)))
-    for (i, (x, y)) in [(60.0, 50.0), (150.0, 95.0), (1040.0, 40.0), (1120.0, 110.0), (1170.0, 60.0), (110.0, 30.0)].enumerated() {
-        ctx.fill(circle(CGPoint(x: x, y: y), 1.6 + 0.6 * sin(t * 2 + Double(i))), with: .color(.white.opacity(0.9)))
+    drawSky(ctx)
+    // The ocean beyond the boardwalk
+    fill(ctx, CGRect(x: 0, y: 330, width: Stage.W, height: 70), Color(red: 0.25, green: 0.58, blue: 0.80))
+    // The rides behind the fence (unless the repo men have them)
+    drawParkFixture(ctx, d: d, .ferrisWheel, anchor: Stage.ferrisAnchor, slot: Stage.ferrisSlot, scale: 0.3, onTruck: false, now: now) { drawFerrisWheel($0, t: t) }
+    drawParkFixture(ctx, d: d, .coaster, anchor: Stage.coasterAnchor, slot: Stage.coasterSlot, scale: 0.35, onTruck: false, now: now) { drawCoaster($0) }
+    // The entrance arch and a fence along the lot
+    fill(ctx, CGRect(x: 0, y: 380, width: Stage.W, height: 6), Color(white: 0.35))
+    for x in stride(from: 0.0, to: Stage.W, by: 24) { fill(ctx, CGRect(x: x, y: 362, width: 3, height: 40), Color(white: 0.35)) }
+    fill(ctx, CGRect(x: 380, y: 250, width: 16, height: 150), Color(red: 0.95, green: 0.75, blue: 0.20))
+    fill(ctx, CGRect(x: 560, y: 250, width: 16, height: 150), Color(red: 0.95, green: 0.75, blue: 0.20))
+    fill(ctx, CGRect(x: 370, y: 232, width: 216, height: 40), Color(red: 0.85, green: 0.15, blue: 0.35), corner: 10)
+    ctx.draw(Text("FUNLAND").font(.system(size: 26, weight: .black, design: .rounded)).foregroundStyle(.yellow), at: CGPoint(x: 478, y: 252))
+    for i in 0..<10 {
+        let on = !d.parkLightsOut && (Int(t * 5) + i) % 2 == 0
+        ctx.fill(circle(CGPoint(x: 380 + Double(i) * 22, y: 228), 3), with: .color((on ? Color.yellow : .white).opacity(on ? 1 : 0.5)))
     }
-    // Sidewalk and curb
-    fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: Stage.H - Stage.floorY), Color(white: 0.30))
-    fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: 6), Color(white: 0.42))
-    for x in stride(from: 0.0, to: Stage.W, by: 90) {
-        fill(ctx, CGRect(x: x, y: Stage.floorY + 6, width: 2, height: Stage.H - Stage.floorY), Color(white: 0.24))
-    }
-    // The brick building
-    let front = CGRect(x: 180, y: 110, width: 820, height: Stage.floorY - 110)
-    fill(ctx, front, Color(red: 0.42, green: 0.20, blue: 0.18))
-    for row in 0..<Int(front.height / 18) {
-        let y = front.minY + Double(row) * 18
-        fill(ctx, CGRect(x: front.minX, y: y, width: front.width, height: 1.5), Color(red: 0.30, green: 0.14, blue: 0.13))
-        for x in stride(from: front.minX + (row % 2 == 0 ? 0 : 20), to: front.maxX, by: 40) {
-            fill(ctx, CGRect(x: x, y: y, width: 1.5, height: 18), Color(red: 0.30, green: 0.14, blue: 0.13))
-        }
-    }
-    fill(ctx, CGRect(x: front.minX - 10, y: front.minY - 14, width: front.width + 20, height: 16), Color(white: 0.55))
-    // Neon sign
-    let signRect = CGRect(x: 300, y: 150, width: 420, height: 64)
-    fill(ctx, signRect, Color(white: 0.10), corner: 8)
-    if on > 0 {
-        ctx.fill(Path(roundedRect: signRect.insetBy(dx: -18, dy: -18), cornerRadius: 22), with: .color(Color(red: 1, green: 0.3, blue: 0.7).opacity(0.18 * on)))
-    }
-    ctx.draw(Text("SHEAR ELEGANCE").font(.system(size: 30, weight: .black, design: .serif))
-                .foregroundStyle(Color(red: 1, green: 0.40, blue: 0.75).mix(with: Color(white: 0.25), by: off)),
-             at: CGPoint(x: signRect.midX, y: signRect.midY))
-    // Shop window and glass door: warm pink light inside, black once the power is cut
-    let window = CGRect(x: 240, y: 250, width: 360, height: 190)
-    let door = CGRect(x: 640, y: 260, width: 90, height: Stage.floorY - 260)
-    let lit = Color(red: 1.0, green: 0.82, blue: 0.88)
-    let dark = Color(red: 0.05, green: 0.05, blue: 0.10)
-    for r in [window, door] {
-        fill(ctx, r.insetBy(dx: -6, dy: -6), Color(white: 0.15))
-        fill(ctx, r, lit.mix(with: dark, by: off))
-    }
-    // Empty styling-chair silhouettes and a mirror behind the glass
-    for x in [300.0, 420.0, 540.0] {
-        ctx.fill(Path(ellipseIn: CGRect(x: x - 22, y: 280, width: 44, height: 60)), with: .color(Color(red: 0.85, green: 0.68, blue: 0.30).opacity(0.7 * on)))
-        fill(ctx, CGRect(x: x - 18, y: 380, width: 36, height: 30), Color(red: 0.75, green: 0.15, blue: 0.20).opacity(0.7 * on), corner: 5)
-    }
-    fill(ctx, CGRect(x: door.midX - 30, y: door.minY + 20, width: 60, height: 22), Color.white.opacity(0.85 * on), corner: 3)
-    ctx.draw(Text("OPEN").font(.system(size: 13, weight: .heavy)).foregroundStyle(Color(red: 0.8, green: 0.1, blue: 0.4).opacity(on)),
-             at: CGPoint(x: door.midX, y: door.minY + 31))
-    ctx.fill(circle(CGPoint(x: door.maxX - 12, y: door.midY + 20), 4), with: .color(Color(red: 0.85, green: 0.72, blue: 0.30)))
-    // Light spilling onto the sidewalk
-    if on > 0 {
-        ctx.fill(Path(CGRect(x: window.minX - 20, y: Stage.floorY, width: door.maxX - window.minX + 40, height: 50)),
-                 with: .linearGradient(Gradient(colors: [lit.opacity(0.35 * on), .clear]),
-                                       startPoint: CGPoint(x: 0, y: Stage.floorY), endPoint: CGPoint(x: 0, y: Stage.floorY + 50)))
-    }
-    // The power meter: conduit up the wall to a weatherhead, a grey box with a glass dial
-    let head = CGPoint(x: Stage.meterX, y: front.minY - 26)
-    fill(ctx, CGRect(x: Stage.meterX - 4, y: head.y, width: 8, height: Stage.meterY - 52 - head.y), Color(white: 0.55))
-    fill(ctx, CGRect(x: head.x - 9, y: head.y - 8, width: 18, height: 10), Color(white: 0.45), corner: 4)
-    let box = CGRect(x: Stage.meterX - 30, y: Stage.meterY - 52, width: 60, height: 92)
-    fill(ctx, box, Color(white: 0.66), corner: 4)
-    ctx.stroke(Path(roundedRect: box, cornerRadius: 4), with: .color(Color(white: 0.40)), lineWidth: 2)
-    ctx.fill(circle(CGPoint(x: Stage.meterX, y: box.minY + 24), 16), with: .color(Color(white: 0.92)))
-    ctx.stroke(circle(CGPoint(x: Stage.meterX, y: box.minY + 24), 16), with: .color(Color(white: 0.35)), lineWidth: 2)
-    var needle = Path()
-    let spin = on * t * 3
-    needle.move(to: CGPoint(x: Stage.meterX, y: box.minY + 24))
-    needle.addLine(to: CGPoint(x: Stage.meterX + sin(spin) * 11, y: box.minY + 24 - cos(spin) * 11))
-    ctx.stroke(needle, with: .color(.black), lineWidth: 1.5)
-    ctx.draw(Text("⚡").font(.system(size: 11)), at: CGPoint(x: Stage.meterX, y: box.maxY - 12))
-
-    // A streetlamp on the left
-    ctx.fill(Path(CGRect(x: 97, y: Stage.floorY - 230, width: 6, height: 230)), with: .color(Color(white: 0.2)))
-    ctx.fill(circle(CGPoint(x: 100, y: Stage.floorY - 232), 11), with: .color(Color(red: 1, green: 0.9, blue: 0.6)))
-    ctx.fill(Path(ellipseIn: CGRect(x: -10, y: Stage.floorY - 200, width: 220, height: 230)),
-             with: .radialGradient(Gradient(colors: [Color(red: 1, green: 0.85, blue: 0.5).opacity(0.3), .clear]),
-                                   center: CGPoint(x: 100, y: Stage.floorY - 80), startRadius: 0, endRadius: 115))
-
-    // The wooden utility pole: crossarm, insulators, transformer and climbing steps
-    let px = Stage.poleX
-    let wood = Color(red: 0.38, green: 0.26, blue: 0.16)
-    fill(ctx, CGRect(x: px - 9, y: 40, width: 18, height: Stage.floorY - 40), wood)
-    fill(ctx, CGRect(x: px - 3, y: 40, width: 3, height: Stage.floorY - 40), Color(red: 0.30, green: 0.20, blue: 0.12))
-    fill(ctx, CGRect(x: px - 70, y: 62, width: 140, height: 10), wood)
-    for dx in [-60.0, -20, 20, 60] {
-        fill(ctx, CGRect(x: px + dx - 4, y: 50, width: 8, height: 12), Color(red: 0.55, green: 0.75, blue: 0.70), corner: 2)
-    }
-    // Main lines running off both sides of the screen
-    for dx in [-60.0, -20, 20, 60] {
+    // The park office, where the boss keeps an eye on everything
+    let office = CGRect(x: 60, y: 300, width: 170, height: 140)
+    fill(ctx, office, Color(red: 0.92, green: 0.90, blue: 0.84))
+    fill(ctx, CGRect(x: office.minX - 8, y: office.minY - 12, width: office.width + 16, height: 16), Color(red: 0.55, green: 0.20, blue: 0.25))
+    fill(ctx, CGRect(x: office.minX + 18, y: office.minY + 26, width: 60, height: 44), Color(red: 0.70, green: 0.87, blue: 1))
+    fill(ctx, CGRect(x: office.minX + 108, y: office.minY + 50, width: 44, height: 90), Color(red: 0.45, green: 0.28, blue: 0.18))
+    fill(ctx, CGRect(x: office.minX + 30, y: office.minY - 36, width: 110, height: 22), Color(red: 0.2, green: 0.25, blue: 0.5), corner: 5)
+    ctx.draw(Text("PARK OFFICE").font(.system(size: 11, weight: .heavy, design: .rounded)).foregroundStyle(.white),
+             at: CGPoint(x: office.minX + 85, y: office.minY - 25))
+    // The electric box on the office's side wall, its big switch up (on) or pulled down (off)
+    let box = CGRect(x: Stage.powerBoxX - 13, y: 372, width: 26, height: 34)
+    fill(ctx, box, Color(white: 0.62), corner: 3)
+    ctx.stroke(Path(roundedRect: box, cornerRadius: 3), with: .color(Color(white: 0.35)), lineWidth: 1.5)
+    ctx.draw(Text("⚡︎").font(.system(size: 9, weight: .black)).foregroundStyle(Color(red: 0.95, green: 0.75, blue: 0.1)),
+             at: CGPoint(x: box.midX - 5, y: box.minY + 8))
+    var lever = Path()
+    lever.move(to: CGPoint(x: box.maxX - 2, y: box.midY))
+    lever.addLine(to: CGPoint(x: box.maxX + 8, y: box.midY + (d.parkLightsOut ? 14 : -14)))
+    ctx.stroke(lever, with: .color(Color(red: 0.8, green: 0.1, blue: 0.1)), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+    // The parking lot
+    fill(ctx, CGRect(x: 0, y: 440, width: Stage.W, height: Stage.H - 440), Color(white: 0.30))
+    for x in stride(from: 40.0, to: Stage.W, by: 110) {
         var line = Path()
-        line.move(to: CGPoint(x: px + dx, y: 50))
-        line.addQuadCurve(to: CGPoint(x: px + dx + (dx < 0 ? -400 : 400), y: 58), control: CGPoint(x: px + dx + (dx < 0 ? -200 : 200), y: 70))
-        ctx.stroke(line, with: .color(.black), lineWidth: 1.5)
+        line.move(to: CGPoint(x: x, y: 448))
+        line.addLine(to: CGPoint(x: x - 30, y: 600))
+        ctx.stroke(line, with: .color(.white.opacity(0.7)), lineWidth: 3)
     }
-    fill(ctx, CGRect(x: px + 10, y: 82, width: 30, height: 44), Color(white: 0.55), corner: 6)
-    fill(ctx, CGRect(x: px + 10, y: 82, width: 30, height: 6), Color(white: 0.45), corner: 3)
-    for y in stride(from: 170.0, to: Stage.floorY - 60, by: 34) {
-        let side = Int(y / 34) % 2 == 0 ? -1.0 : 1.0
-        fill(ctx, CGRect(x: side < 0 ? px - 22 : px + 9, y: y, width: 13, height: 4), Color(white: 0.6))
+    // The repo men's flatbed is parked behind everyone.
+    if let fx = d.flatbed(at: now) { drawFlatbed(ctx, x: fx, now: now) }
+    // …with the rides being winched up onto it.
+    drawParkFixture(ctx, d: d, .ferrisWheel, anchor: Stage.ferrisAnchor, slot: Stage.ferrisSlot, scale: 0.3, onTruck: true, now: now) { drawFerrisWheel($0, t: t) }
+    drawParkFixture(ctx, d: d, .coaster, anchor: Stage.coasterAnchor, slot: Stage.coasterSlot, scale: 0.35, onTruck: true, now: now) { drawCoaster($0) }
+    // The zamboni's seat back sits behind its driver; the rest of it is drawn in front of her.
+    if let zx = d.zamboni(at: now) {
+        fill(ctx, CGRect(x: zx - 24, y: Stage.floorY - 92, width: 9, height: 44), Color(white: 0.2), corner: 3)
     }
-    fill(ctx, CGRect(x: Stage.dropClamp.x - 6, y: Stage.dropClamp.y - 5, width: 12, height: 10), Color(white: 0.35), corner: 2)
+    for (z, spot) in zip(d.fleet, d.fleetSpots(at: now)) where z.rider != nil {
+        fill(ctx, CGRect(x: spot.x - 24, y: Stage.floorY - 92 - spot.lift, width: 9, height: 44), Color(white: 0.2), corner: 3)
+    }
+    if d.funlandClosed { drawFunlandClosed(ctx) }
+}
 
-    // The service wire to the salon: slung from the pole to the weatherhead, then cut loose and dangling
-    let end = CGPoint(x: head.x, y: head.y - 4)
-    var wire = Path()
-    wire.move(to: end)
-    if let cut = lightsOff {
-        let u = min(max(now.timeIntervalSince(cut) / 0.5, 0), 1)
-        let fall = u * u
-        let tip = CGPoint(x: Stage.dropClamp.x + (head.x + 70 - Stage.dropClamp.x) * fall,
-                          y: Stage.dropClamp.y + (Stage.floorY - 150 - Stage.dropClamp.y) * fall)
-        let sway = sin(now.timeIntervalSince(cut) * 3) * 6 * max(0, 1 - now.timeIntervalSince(cut) / 4)
-        wire.addQuadCurve(to: CGPoint(x: tip.x + sway, y: tip.y), control: CGPoint(x: (end.x + tip.x) / 2, y: max(end.y, tip.y) + 40))
-        ctx.stroke(wire, with: .color(.black), lineWidth: 2.5)
-        // Sparks fly as it comes free
-        let st = now.timeIntervalSince(cut)
-        if st < 0.8 {
-            for i in 0..<10 {
-                let a = Double(i) * 0.63 + 0.4
-                let r = 6 + st * 70
-                let c = CGPoint(x: Stage.dropClamp.x + cos(a) * r, y: Stage.dropClamp.y + sin(a) * r + st * st * 60)
-                ctx.fill(circle(c, 2.4 * (1 - st / 0.8)), with: .color(Color(red: 1, green: 0.85, blue: 0.3)))
+/// Funland's Ferris wheel, turning slowly behind the fence.
+func drawFerrisWheel(_ ctx: GraphicsContext, t: Double) {
+    let hub = CGPoint(x: 820, y: 230)
+    let r = 140.0
+    for side in [-1.0, 1.0] {
+        var leg = Path()
+        leg.move(to: hub)
+        leg.addLine(to: CGPoint(x: hub.x + side * 70, y: 400))
+        ctx.stroke(leg, with: .color(Color(white: 0.45)), lineWidth: 6)
+    }
+    ctx.stroke(circle(hub, r), with: .color(Color(red: 0.95, green: 0.30, blue: 0.40)), lineWidth: 4)
+    ctx.stroke(circle(hub, r - 12), with: .color(Color(red: 0.95, green: 0.30, blue: 0.40).opacity(0.6)), lineWidth: 2)
+    let cars: [Color] = [.yellow, .cyan, .orange, .green, .purple, .pink, .red, .blue]
+    for k in 0..<12 {
+        let ang = t * 0.15 + Double(k) / 12 * 2 * .pi
+        let p = CGPoint(x: hub.x + cos(ang) * r, y: hub.y + sin(ang) * r)
+        var spoke = Path()
+        spoke.move(to: hub)
+        spoke.addLine(to: p)
+        ctx.stroke(spoke, with: .color(Color(white: 0.55)), lineWidth: 1.5)
+        fill(ctx, CGRect(x: p.x - 10, y: p.y, width: 20, height: 16), cars[k % cars.count], corner: 4)
+    }
+    ctx.fill(circle(hub, 9), with: .color(Color(white: 0.4)))
+}
+
+/// Funland's roller coaster on the right, behind the fence.
+func drawCoaster(_ ctx: GraphicsContext) {
+    var track = Path()
+    track.move(to: CGPoint(x: 960, y: 400))
+    track.addCurve(to: CGPoint(x: 1200, y: 190), control1: CGPoint(x: 1030, y: 120), control2: CGPoint(x: 1090, y: 380))
+    ctx.stroke(track, with: .color(Color(red: 0.25, green: 0.35, blue: 0.75)), lineWidth: 6)
+    for x in stride(from: 975.0, to: 1200, by: 28) {
+        fill(ctx, CGRect(x: x, y: 260, width: 3, height: 140), Color(white: 0.6))
+    }
+}
+
+/// One of Funland's rides: in place (`anchor` is its bottom middle), being winched up onto the repo
+/// flatbed and shrunk to fit (`slot` from the bed's left end, at `scale`), riding away on it, or gone once the flatbed has left.
+/// `onTruck` picks which of those this call draws (nil = either), so things in place stay behind the fence.
+func drawParkFixture(_ ctx: GraphicsContext, d: Director, _ item: ParkRide, anchor: CGPoint, slot: Double, scale: Double,
+                     onTruck: Bool?, now: Date, draw: (GraphicsContext) -> Void) {
+    guard let t0 = d.parkHaul[item] else {
+        if onTruck != true { draw(ctx) }
+        return
+    }
+    guard onTruck != false, !d.flatbedEmpty, let bed = d.flatbed(at: now) else { return }
+    let u = min(max(now.timeIntervalSince(t0) / Director.rideLoadDur, 0), 1)
+    let e = u * u * (3 - 2 * u)
+    let target = CGPoint(x: bed + slot, y: Stage.floorY - Stage.flatbedDeck)
+    // Lifted up and over in an arc, not dragged along the ground.
+    let pos = CGPoint(x: anchor.x + (target.x - anchor.x) * e, y: anchor.y + (target.y - anchor.y) * e - sin(e * .pi) * 60)
+    let sc = 1 + (scale - 1) * e
+    var c = ctx
+    c.translateBy(x: pos.x, y: pos.y)
+    c.scaleBy(x: sc, y: sc)
+    c.translateBy(x: -anchor.x, y: -anchor.y)
+    draw(c)
+}
+
+/// Closed by the bank: the gate chained shut and a big banner across the arch.
+func drawFunlandClosed(_ ctx: GraphicsContext) {
+    var chain = Path()
+    chain.move(to: CGPoint(x: 376, y: 380))
+    chain.addQuadCurve(to: CGPoint(x: 568, y: 380), control: CGPoint(x: 472, y: 410))
+    ctx.stroke(chain, with: .color(Color(white: 0.55)), style: StrokeStyle(lineWidth: 4, dash: [7, 3]))
+    fill(ctx, CGRect(x: 462, y: 384, width: 20, height: 18), Color(red: 0.75, green: 0.6, blue: 0.2), corner: 3)
+    var c = ctx
+    c.translateBy(x: 478, y: 262)
+    c.rotate(by: .degrees(-8))
+    fill(c, CGRect(x: -150, y: -24, width: 300, height: 48), Color(red: 0.85, green: 0.08, blue: 0.08), corner: 4)
+    c.draw(Text("CLOSED BY THE BANK").font(.system(size: 22, weight: .black)).foregroundStyle(.white), at: CGPoint(x: 0, y: -6))
+    c.draw(Text("SHORE SAVINGS BANK · LOAN IN DEFAULT").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white), at: CGPoint(x: 0, y: 14))
+    // The notice on the office door
+    fill(ctx, CGRect(x: 170, y: 360, width: 34, height: 42), .white, corner: 2)
+    fill(ctx, CGRect(x: 174, y: 364, width: 26, height: 7), Color(red: 0.85, green: 0.08, blue: 0.08))
+    for k in 0..<4 { fill(ctx, CGRect(x: 174, y: 376 + Double(k) * 6, width: 26, height: 2), Color(white: 0.5)) }
+}
+
+/// The zambonis (in front of their drivers, so they sit down inside them) and Mr. Grimsby's motorcycle.
+func drawParkVehicles(_ ctx: GraphicsContext, d: Director, now: Date) {
+    // The coworkers' zambonis — on the lot, or up on the repo men's flatbed.
+    for spot in d.fleetSpots(at: now) {
+        var c = ctx
+        c.translateBy(x: 0, y: -spot.lift)
+        drawZamboni(c, x: spot.x, now: now)
+    }
+    if let mx = d.motorcycle(at: now) { drawMotorcycle(ctx, x: mx, ridden: d.motorcycleRider != nil, now: now) }
+    if let fight = d.scuffle {
+        let age = now.timeIntervalSince(fight.t0)
+        if age < 0.9 {
+            let c = CGPoint(x: fight.x, y: Stage.floorY - 130)
+            for k in 0..<6 {
+                let ang = Double(k) / 6 * 2 * .pi + 0.3
+                ctx.draw(Text("✸").font(.system(size: 18)).foregroundStyle(Color.yellow.opacity(1 - age / 0.9)),
+                         at: CGPoint(x: c.x + cos(ang) * (14 + age * 50), y: c.y + sin(ang) * (12 + age * 40)))
             }
-            ctx.fill(circle(Stage.dropClamp, 14 * (1 - st / 0.8)), with: .color(Color(red: 1, green: 1, blue: 0.8).opacity(0.8)))
+            let word = ["POW!", "BIFF!", "WHAP!"][Int(fight.t0.timeIntervalSinceReferenceDate * 10) % 3]
+            ctx.draw(Text(word).font(.system(size: 28, weight: .black, design: .rounded)).foregroundStyle(Color.red.opacity(1 - age / 0.9)),
+                     at: CGPoint(x: c.x, y: c.y - 34 - age * 16))
         }
-    } else {
-        wire.addQuadCurve(to: Stage.dropClamp, control: CGPoint(x: (end.x + Stage.dropClamp.x) / 2, y: max(end.y, Stage.dropClamp.y) + 30))
-        ctx.stroke(wire, with: .color(.black), lineWidth: 2.5)
     }
+    if let zx = d.zamboni(at: now) { drawZamboni(ctx, x: zx, now: now) }
 }
 
-func drawSalon(_ ctx: GraphicsContext, now: Date, cleared: Set<SalonItem> = []) {
-    let t = now.timeIntervalSinceReferenceDate
-    // Pink walls, a white crown band, and a black-and-white checkered floor
-    fill(ctx, CGRect(x: 0, y: 0, width: Stage.W, height: Stage.floorY), Color(red: 0.98, green: 0.85, blue: 0.89))
-    fill(ctx, CGRect(x: 0, y: 0, width: Stage.W, height: 150), Color(red: 1, green: 0.94, blue: 0.96))
-    for x in stride(from: 80.0, to: Stage.W, by: 240) {
-        ctx.fill(circle(CGPoint(x: x + 60, y: 140), 10), with: .color(Color(red: 1, green: 0.98, blue: 0.85)))
+/// Mr. Grimsby's motorcycle, nose to the right. `x` is the seat, where a rider sits; once ridden, exhaust puffs out the back.
+func drawMotorcycle(_ ctx: GraphicsContext, x: Double, ridden: Bool, now: Date) {
+    let g = Stage.floorY
+    let chrome = Color(white: 0.78)
+    let black = Color(white: 0.10)
+    let paint = Color(red: 0.10, green: 0.10, blue: 0.12)
+    let back = CGPoint(x: x - 34, y: g - 17)
+    let front = CGPoint(x: x + 58, y: g - 17)
+    for w in [back, front] {
+        ctx.fill(circle(w, 17), with: .color(black))
+        ctx.fill(circle(w, 7), with: .color(chrome))
     }
-    fill(ctx, CGRect(x: 0, y: Stage.floorY - 14, width: Stage.W, height: 14), Color(red: 0.85, green: 0.55, blue: 0.65))
-    for (i, x) in stride(from: 0.0, to: Stage.W, by: 30).enumerated() {
-        for (j, y) in stride(from: Stage.floorY, to: Stage.H, by: 30).enumerated() {
-            fill(ctx, CGRect(x: x, y: y, width: 30, height: 30), (i + j) % 2 == 0 ? Color(white: 0.95) : Color(white: 0.12))
-        }
-    }
-
-    // The salon's sign and a wall clock
-    fill(ctx, CGRect(x: 150, y: 168, width: 320, height: 58), Color(red: 0.80, green: 0.15, blue: 0.50), corner: 8)
-    ctx.draw(Text("SHEAR ELEGANCE").font(.system(size: 22, weight: .black, design: .serif)).foregroundStyle(.white), at: CGPoint(x: 310, y: 190))
-    ctx.draw(Text("Hair · Color · Nails").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.white.opacity(0.9)), at: CGPoint(x: 310, y: 212))
-    let clock = CGPoint(x: 600, y: 200)
-    ctx.fill(circle(clock, 24), with: .color(.white))
-    ctx.stroke(circle(clock, 24), with: .color(Color(red: 0.80, green: 0.62, blue: 0.25)), lineWidth: 3)
-    for (len, angle) in [(12.0, t / 600), (18.0, t / 50)] {
-        var hand = Path()
-        hand.move(to: clock)
-        hand.addLine(to: CGPoint(x: clock.x + sin(angle) * len, y: clock.y - cos(angle) * len))
-        ctx.stroke(hand, with: .color(Color(white: 0.15)), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-    }
-
-    // Styling stations: a gold-framed mirror, a counter of products, and a red styling chair
-    let gold = Color(red: 0.85, green: 0.68, blue: 0.28)
-    let bottles = [Color(red: 0.95, green: 0.40, blue: 0.60), Color(red: 0.40, green: 0.70, blue: 0.90),
-                   Color(red: 0.98, green: 0.85, blue: 0.35), Color(red: 0.60, green: 0.45, blue: 0.85)]
-    for (i, x) in [100.0, Stage.stationX, 440].enumerated() {
-        // Styling chair beside the station: base, pole, a tall back, armrests and the seat
-        let cx = x + Stage.salonChairOffset
-        let red = Color(red: 0.78, green: 0.10, blue: 0.20)
-        if !cleared.contains(.chair(i)) {
-            ctx.fill(Path(ellipseIn: CGRect(x: cx - 26, y: Stage.floorY - 8, width: 52, height: 10)), with: .color(Color(white: 0.75)))
-            fill(ctx, CGRect(x: cx - 4, y: 456, width: 8, height: Stage.floorY - 460), Color(white: 0.70))
-            fill(ctx, CGRect(x: cx - 32, y: 372, width: 64, height: 78), red, corner: 10)
-            fill(ctx, CGRect(x: cx - 42, y: 430, width: 14, height: 10), Color(red: 0.55, green: 0.06, blue: 0.14), corner: 4)
-            fill(ctx, CGRect(x: cx + 28, y: 430, width: 14, height: 10), Color(red: 0.55, green: 0.06, blue: 0.14), corner: 4)
-            fill(ctx, CGRect(x: cx - 36, y: 442, width: 72, height: 14), red, corner: 5)
-        }
-        guard !cleared.contains(.station(i)) else {
-            // Just a pale patch on the wall where the mirror hung.
-            ctx.fill(Path(ellipseIn: CGRect(x: x - 44, y: 246, width: 88, height: 124)), with: .color(Color(red: 1, green: 0.92, blue: 0.94)))
-            continue
-        }
-        let mirror = CGRect(x: x - 38, y: 252, width: 76, height: 112)
-        ctx.fill(Path(ellipseIn: mirror.insetBy(dx: -6, dy: -6)), with: .color(gold))
-        ctx.fill(Path(ellipseIn: mirror), with: .color(Color(red: 0.80, green: 0.90, blue: 0.96)))
-        var glint = Path()
-        glint.move(to: CGPoint(x: mirror.minX + 18, y: mirror.minY + 30))
-        glint.addLine(to: CGPoint(x: mirror.minX + 34, y: mirror.minY + 14))
-        ctx.stroke(glint, with: .color(.white.opacity(0.8)), lineWidth: 4)
-        fill(ctx, CGRect(x: x - 60, y: 392, width: 120, height: 10), Color(white: 0.97), corner: 2)
-        fill(ctx, CGRect(x: x - 54, y: 402, width: 108, height: Stage.floorY - 402), Color(red: 0.92, green: 0.70, blue: 0.78))
-        for k in 0..<3 {
-            let b = bottles[(i + k) % bottles.count]
-            fill(ctx, CGRect(x: x - 50 + Double(k) * 12, y: 372, width: 9, height: 20), b, corner: 2)
-            fill(ctx, CGRect(x: x - 48 + Double(k) * 12, y: 367, width: 5, height: 5), Color(white: 0.2))
-        }
-    }
-    // Deidre's own station: her name plaque, scissors, comb and a spray bottle
-    if !cleared.contains(.station(1)) {
-        fill(ctx, CGRect(x: Stage.stationX - 30, y: 226, width: 60, height: 16), gold, corner: 4)
-        ctx.draw(Text("DEIDRE").font(.system(size: 10, weight: .heavy, design: .rounded)).foregroundStyle(.white),
-                 at: CGPoint(x: Stage.stationX, y: 234))
-        var scissors = Path()
-        scissors.move(to: CGPoint(x: Stage.stationX + 4, y: 390))
-        scissors.addLine(to: CGPoint(x: Stage.stationX + 28, y: 380))
-        scissors.move(to: CGPoint(x: Stage.stationX + 4, y: 380))
-        scissors.addLine(to: CGPoint(x: Stage.stationX + 28, y: 390))
-        ctx.stroke(scissors, with: .color(Color(white: 0.55)), lineWidth: 2.5)
-        ctx.stroke(circle(CGPoint(x: Stage.stationX + 2, y: 391), 3), with: .color(Color(white: 0.3)), lineWidth: 1.5)
-        ctx.stroke(circle(CGPoint(x: Stage.stationX + 2, y: 379), 3), with: .color(Color(white: 0.3)), lineWidth: 1.5)
-        fill(ctx, CGRect(x: Stage.stationX + 34, y: 386, width: 22, height: 5), Color(white: 0.1), corner: 1)
-        fill(ctx, CGRect(x: Stage.stationX + 44, y: 366, width: 10, height: 20), Color(red: 0.55, green: 0.85, blue: 0.95).opacity(0.85), corner: 2)
-    }
-
-    // A hood dryer chair by the wall
-    let dx = 640.0
-    if !cleared.contains(.dryer) {
-        fill(ctx, CGRect(x: dx - 28, y: 420, width: 56, height: 16), Color(red: 0.55, green: 0.30, blue: 0.65), corner: 5)
-        fill(ctx, CGRect(x: dx - 26, y: 382, width: 52, height: 40), Color(red: 0.55, green: 0.30, blue: 0.65), corner: 6)
-        fill(ctx, CGRect(x: dx - 24, y: 436, width: 6, height: Stage.floorY - 436), Color(white: 0.6))
-        fill(ctx, CGRect(x: dx + 18, y: 436, width: 6, height: Stage.floorY - 436), Color(white: 0.6))
-        fill(ctx, CGRect(x: dx + 30, y: 330, width: 6, height: Stage.floorY - 330), Color(white: 0.7))
-        ctx.fill(Path(ellipseIn: CGRect(x: dx - 30, y: 318, width: 72, height: 56)), with: .color(Color(white: 0.92)))
-        ctx.stroke(Path(ellipseIn: CGRect(x: dx - 30, y: 318, width: 72, height: 56)), with: .color(Color(white: 0.6)), lineWidth: 2)
-    }
-
-    // The owner's office: a glass wall with a door, a window on the city, a desk with flowers
-    let room = CGRect(x: Stage.ownerDoorX - 40, y: 160, width: Stage.W - Stage.ownerDoorX + 40, height: Stage.floorY - 160)
-    fill(ctx, room, Color(red: 0.93, green: 0.88, blue: 0.95))
-    let window = CGRect(x: room.minX + 120, y: 200, width: 280, height: 140)
-    fill(ctx, window, Color(red: 0.62, green: 0.82, blue: 0.98))
-    for (k, hgt) in [80.0, 120, 60, 100, 130, 70, 110].enumerated() {
-        fill(ctx, CGRect(x: window.minX + 6 + Double(k) * 40, y: window.maxY - hgt, width: 32, height: hgt), Color(red: 0.42, green: 0.50, blue: 0.62))
-    }
-    ctx.stroke(Path(window), with: .color(.white), lineWidth: 6)
-    fill(ctx, CGRect(x: window.midX - 3, y: window.minY, width: 6, height: window.height), .white)
-    if !cleared.contains(.desk) {
-        fill(ctx, CGRect(x: Stage.ownerDeskX - 90, y: 395, width: 180, height: 14), Color(white: 0.96))
-        fill(ctx, CGRect(x: Stage.ownerDeskX - 84, y: 409, width: 168, height: Stage.floorY - 409), Color(red: 0.88, green: 0.62, blue: 0.74))
-        // Appointment book and a vase of pink flowers
-        fill(ctx, CGRect(x: Stage.ownerDeskX - 56, y: 385, width: 44, height: 10), Color(red: 0.55, green: 0.15, blue: 0.35), corner: 2)
-        fill(ctx, CGRect(x: Stage.ownerDeskX + 34, y: 374, width: 14, height: 21), Color(red: 0.70, green: 0.88, blue: 0.95).opacity(0.85), corner: 3)
-        for k in 0..<4 {
-            ctx.fill(circle(CGPoint(x: Stage.ownerDeskX + 30 + Double(k) * 7, y: 366 - Double(k % 2) * 6), 5),
-                     with: .color(Color(red: 0.95, green: 0.45, blue: 0.65)))
-        }
-    }
-    // Glass wall and door frame
-    ctx.fill(Path(CGRect(x: room.minX, y: room.minY, width: 12, height: room.height)), with: .color(gold))
-    fill(ctx, CGRect(x: room.minX, y: room.minY, width: room.width, height: 12), gold)
-    let door = CGRect(x: Stage.ownerDoorX - 28, y: Stage.floorY - 190, width: 70, height: 190)
-    ctx.stroke(Path(door), with: .color(gold), lineWidth: 6)
-    fill(ctx, CGRect(x: door.minX + 6, y: door.minY + 24, width: 58, height: 18), Color(red: 0.80, green: 0.15, blue: 0.50), corner: 3)
-    ctx.draw(Text("OWNER").font(.system(size: 10, weight: .black, design: .rounded)).foregroundStyle(.white), at: CGPoint(x: door.midX, y: door.minY + 33))
-}
-
-// MARK: Tina and Amber's bathroom
-
-/// Tina and Amber's apartment bathroom late at night: tiled walls, a long vanity with two sinks under one big mirror.
-func drawBathroom(_ ctx: GraphicsContext, now: Date) {
-    let t = now.timeIntervalSinceReferenceDate
-    // Mint tiles above a white wainscot, and a grey hex-ish floor
-    fill(ctx, CGRect(x: 0, y: 0, width: Stage.W, height: Stage.floorY), Color(red: 0.80, green: 0.93, blue: 0.88))
-    for x in stride(from: 0.0, to: Stage.W, by: 40) {
-        fill(ctx, CGRect(x: x, y: 0, width: 1.5, height: Stage.floorY), Color(white: 1).opacity(0.7))
-    }
-    for y in stride(from: 0.0, to: Stage.floorY, by: 40) {
-        fill(ctx, CGRect(x: 0, y: y, width: Stage.W, height: 1.5), Color(white: 1).opacity(0.7))
-    }
-    fill(ctx, CGRect(x: 0, y: Stage.floorY - 10, width: Stage.W, height: 10), Color(white: 0.92))
-    fill(ctx, CGRect(x: 0, y: Stage.floorY, width: Stage.W, height: Stage.H - Stage.floorY), Color(white: 0.72))
-    for x in stride(from: 0.0, to: Stage.W, by: 36) {
-        fill(ctx, CGRect(x: x, y: Stage.floorY, width: 1.5, height: Stage.H - Stage.floorY), Color(white: 0.6))
-    }
-
-    // A small window on the night sky
-    let win = CGRect(x: 70, y: 120, width: 150, height: 130)
-    fill(ctx, win, Color(red: 0.05, green: 0.08, blue: 0.25))
-    ctx.fill(circle(CGPoint(x: win.minX + 105, y: win.minY + 40), 16), with: .color(Color(red: 1, green: 0.97, blue: 0.80)))
-    for (i, (x, y)) in [(25.0, 30.0), (60.0, 85.0), (130.0, 100.0)].enumerated() {
-        ctx.fill(circle(CGPoint(x: win.minX + x, y: win.minY + y), 1.5 + 0.5 * sin(t * 2 + Double(i))), with: .color(.white))
-    }
-    ctx.stroke(Path(win), with: .color(.white), lineWidth: 6)
-    fill(ctx, CGRect(x: win.midX - 3, y: win.minY, width: 6, height: win.height), .white)
-
-    // The big mirror and its row of vanity bulbs
-    let mirror = CGRect(x: 330, y: 150, width: 540, height: 240)
-    fill(ctx, mirror.insetBy(dx: -8, dy: -8), Color(white: 0.85), corner: 6)
-    fill(ctx, mirror, Color(red: 0.78, green: 0.88, blue: 0.94), corner: 3)
-    for k in 0..<3 {
-        var glint = Path()
-        glint.move(to: CGPoint(x: mirror.minX + 40 + Double(k) * 190, y: mirror.maxY - 30))
-        glint.addLine(to: CGPoint(x: mirror.minX + 90 + Double(k) * 190, y: mirror.minY + 30))
-        ctx.stroke(glint, with: .color(.white.opacity(0.6)), lineWidth: 5)
-    }
-    for k in 0..<8 {
-        ctx.fill(circle(CGPoint(x: mirror.minX + 30 + Double(k) * 68, y: mirror.minY - 22), 11), with: .color(Color(red: 1, green: 0.96, blue: 0.80)))
-    }
-
-    // The vanity: counter, two basins with taps, cabinet doors
-    fill(ctx, CGRect(x: 320, y: 420, width: 560, height: 14), Color(white: 0.97), corner: 3)
-    fill(ctx, CGRect(x: 330, y: 434, width: 540, height: Stage.floorY - 434), Color(red: 0.55, green: 0.40, blue: 0.30))
+    // Frame, engine and exhaust
+    var frame = Path()
+    frame.move(to: back)
+    frame.addLine(to: CGPoint(x: x + 6, y: g - 22))
+    frame.addLine(to: CGPoint(x: x + 30, y: g - 50))
+    frame.move(to: CGPoint(x: x + 6, y: g - 22))
+    frame.addLine(to: CGPoint(x: x + 34, y: g - 28))
+    ctx.stroke(frame, with: .color(chrome), lineWidth: 4)
+    fill(ctx, CGRect(x: x - 6, y: g - 38, width: 26, height: 18), Color(white: 0.45), corner: 4)
+    fill(ctx, CGRect(x: x - 46, y: g - 26, width: 44, height: 6), chrome, corner: 3)
+    // Seat, tank (with a red stripe) and the fork up to the handlebars
+    fill(ctx, CGRect(x: x - 26, y: g - 50, width: 36, height: 9), Color(red: 0.25, green: 0.15, blue: 0.10), corner: 4)
+    fill(ctx, CGRect(x: x + 6, y: g - 58, width: 32, height: 16), paint, corner: 7)
+    fill(ctx, CGRect(x: x + 10, y: g - 52, width: 24, height: 3), Color(red: 0.85, green: 0.12, blue: 0.12))
+    var fork = Path()
+    fork.move(to: front)
+    fork.addLine(to: CGPoint(x: x + 42, y: g - 76))
+    fork.addLine(to: CGPoint(x: x + 30, y: g - 80))
+    ctx.stroke(fork, with: .color(chrome), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+    fill(ctx, CGRect(x: x + 44, y: g - 68, width: 10, height: 10), Color(red: 1, green: 0.95, blue: 0.6), corner: 5)
+    // Rear fender over the back wheel
+    var fender = Path()
+    fender.addArc(center: back, radius: 21, startAngle: .degrees(190), endAngle: .degrees(300), clockwise: false)
+    ctx.stroke(fender, with: .color(paint), lineWidth: 5)
+    guard ridden else { return }
     for k in 0..<4 {
-        ctx.stroke(Path(CGRect(x: 342 + Double(k) * 132, y: 444, width: 120, height: Stage.floorY - 454)), with: .color(Color(red: 0.42, green: 0.30, blue: 0.22)), lineWidth: 2)
+        let u = (now.timeIntervalSinceReferenceDate * 1.6 + Double(k) / 4).truncatingRemainder(dividingBy: 1)
+        ctx.fill(circle(CGPoint(x: x - 50 - u * 50, y: g - 24 - u * 18), 5 + u * 9), with: .color(Color(white: 0.6).opacity(0.5 * (1 - u))))
     }
-    for x in [480.0, 720] {
-        ctx.fill(Path(ellipseIn: CGRect(x: x - 50, y: 416, width: 100, height: 14)), with: .color(Color(white: 0.85)))
-        fill(ctx, CGRect(x: x - 4, y: 398, width: 8, height: 20), Color(white: 0.75), corner: 2)
-        fill(ctx, CGRect(x: x - 4, y: 398, width: 22, height: 6), Color(white: 0.75), corner: 2)
-    }
-    // A can of shaving cream, a towel on the rail
-    fill(ctx, CGRect(x: 590, y: 392, width: 18, height: 28), Color(red: 0.20, green: 0.45, blue: 0.85), corner: 3)
-    fill(ctx, CGRect(x: 594, y: 386, width: 10, height: 7), .white, corner: 1)
-    fill(ctx, CGRect(x: 960, y: 250, width: 140, height: 6), Color(white: 0.7), corner: 3)
-    fill(ctx, CGRect(x: 975, y: 252, width: 110, height: 110), Color(red: 0.98, green: 0.65, blue: 0.75), corner: 4)
-    fill(ctx, CGRect(x: 975, y: 330, width: 110, height: 8), Color(red: 1, green: 0.85, blue: 0.90))
 }
+
+/// The repo men's long flatbed tow truck, nose to the right. `x` is the left end of its bed.
+func drawFlatbed(_ ctx: GraphicsContext, x: Double, now: Date) {
+    let g = Stage.floorY
+    let len = Stage.flatbedLength
+    let deckTop = g - Stage.flatbedDeck
+    let dark = Color(white: 0.20)
+    let paint = Color(red: 0.80, green: 0.14, blue: 0.12)
+    // Chassis and the steel deck
+    fill(ctx, CGRect(x: x + 10, y: g - 24, width: len + 80, height: 10), dark, corner: 3)
+    fill(ctx, CGRect(x: x, y: deckTop, width: len, height: 12), Color(white: 0.45), corner: 2)
+    for k in stride(from: 0.0, to: len, by: 25) {
+        fill(ctx, CGRect(x: x + k, y: deckTop, width: 2, height: 12), Color(white: 0.32))
+    }
+    fill(ctx, CGRect(x: x, y: deckTop + 9, width: len, height: 3), paint)
+    ctx.draw(Text("SHORE COUNTY RECOVERY").font(.system(size: 9, weight: .black, design: .rounded)).foregroundStyle(.white),
+             at: CGPoint(x: x + len / 2, y: g - 9))
+    // Winch post at the front of the bed
+    fill(ctx, CGRect(x: x + len - 14, y: deckTop - 46, width: 12, height: 46), dark, corner: 2)
+    fill(ctx, CGRect(x: x + len - 22, y: deckTop - 52, width: 28, height: 8), dark, corner: 3)
+    // Cab
+    let cab = CGRect(x: x + len, y: g - 104, width: 104, height: 84)
+    fill(ctx, cab, paint, corner: 8)
+    fill(ctx, CGRect(x: cab.minX + 46, y: cab.minY + 10, width: 50, height: 32), Color(red: 0.75, green: 0.90, blue: 1), corner: 5)
+    fill(ctx, CGRect(x: cab.minX + 10, y: cab.minY + 10, width: 30, height: 32), Color(red: 0.75, green: 0.90, blue: 1), corner: 4)
+    ctx.draw(Text("REPO").font(.system(size: 12, weight: .black, design: .rounded)).foregroundStyle(.white),
+             at: CGPoint(x: cab.minX + 34, y: cab.minY + 58))
+    fill(ctx, CGRect(x: cab.maxX - 4, y: cab.maxY - 20, width: 8, height: 9), Color(red: 1, green: 0.95, blue: 0.6), corner: 2)
+    fill(ctx, CGRect(x: cab.minX + 4, y: cab.maxY - 6, width: cab.width, height: 8), dark, corner: 3)
+    // Flashing amber light on the roof
+    let on = sin(now.timeIntervalSinceReferenceDate * 9) > 0
+    fill(ctx, CGRect(x: cab.minX + 30, y: cab.minY - 8, width: 20, height: 8), Color(red: 1, green: 0.6, blue: 0).opacity(on ? 1 : 0.4), corner: 3)
+    if on { ctx.fill(circle(CGPoint(x: cab.minX + 40, y: cab.minY - 4), 18), with: .color(Color(red: 1, green: 0.7, blue: 0.1).opacity(0.3))) }
+    for wx in [x + 60, x + 120, x + len - 70, x + len + 70] {
+        ctx.fill(circle(CGPoint(x: wx, y: g - 14), 15), with: .color(Color(white: 0.10)))
+        ctx.fill(circle(CGPoint(x: wx, y: g - 14), 6), with: .color(Color(white: 0.70)))
+    }
+}
+
+/// The park's maintenance zamboni (it sweeps and scrubs the lot). The driver sits at the back, facing right.
+/// `x` is where the driver sits.
+func drawZamboni(_ ctx: GraphicsContext, x: Double, now: Date) {
+    let c = ctx
+    let ground = Stage.floorY
+    let blue = Color(red: 0.15, green: 0.40, blue: 0.75)
+    // Body: the driver sits down inside it, up to her waist
+    fill(c, CGRect(x: x - 34, y: ground - 54, width: 134, height: 40), .white, corner: 8)
+    fill(c, CGRect(x: x - 34, y: ground - 34, width: 134, height: 14), blue)
+    c.draw(Text("FUNLAND MAINT.").font(.system(size: 9, weight: .black, design: .rounded)).foregroundStyle(.white), at: CGPoint(x: x + 33, y: ground - 27))
+    // Steering column and wheel
+    fill(c, CGRect(x: x + 24, y: ground - 80, width: 4, height: 28), Color(white: 0.25))
+    c.stroke(Path(ellipseIn: CGRect(x: x + 14, y: ground - 86, width: 22, height: 8)), with: .color(Color(white: 0.15)), lineWidth: 3)
+    // The scrubber box out front
+    fill(c, CGRect(x: x + 100, y: ground - 32, width: 26, height: 20), Color(red: 0.95, green: 0.70, blue: 0.15), corner: 4)
+    // Amber light on a post
+    let blink = sin(now.timeIntervalSinceReferenceDate * 8) > 0
+    fill(c, CGRect(x: x + 72, y: ground - 70, width: 3, height: 16), Color(white: 0.3))
+    c.fill(circle(CGPoint(x: x + 73.5, y: ground - 72), 6), with: .color(Color.orange.opacity(blink ? 1 : 0.4)))
+    // Wheels
+    for wx in [x - 8, x + 78] { c.fill(circle(CGPoint(x: wx, y: ground - 12), 13), with: .color(Color(white: 0.1))) }
+}
+

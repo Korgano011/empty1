@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum AlbumRoute: Hashable {
     case entry(UUID)
@@ -12,6 +13,8 @@ struct AlbumView: View {
     @State private var pendingEntry: AlbumEntry?
     @State private var pendingEvent: EventRecord?
     @State private var confirmDeleteAll = false
+    @State private var exportFiles: [PhotoFile] = []
+    @State private var exportingAll = false
 
     var body: some View {
         NavigationStack {
@@ -28,6 +31,7 @@ struct AlbumView: View {
                                         NavigationLink(value: AlbumRoute.entry(entry.id)) {
                                             EntryRow(entry: entry)
                                         }
+                                        SavePhotoButton(spec: entry.spec, date: entry.date, compact: true)
                                         trash("Delete this photo") { pendingEntry = entry }
                                     }
                                     .swipeActions {
@@ -69,12 +73,18 @@ struct AlbumView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Save All Photos…", systemImage: "square.and.arrow.down.on.square") { saveAll() }
+                        .disabled(album.entries.isEmpty && album.events.allSatisfy { $0.customers.isEmpty })
+                        .help("Save every before-and-after photo to a folder on your computer")
+                }
                 ToolbarItem(placement: .destructiveAction) {
                     Button("Delete All", systemImage: "trash", role: .destructive) { confirmDeleteAll = true }
                         .disabled(album.entries.isEmpty && album.events.isEmpty)
                         .help("Delete everything in the album")
                 }
             }
+            .fileExporter(isPresented: $exportingAll, documents: exportFiles, contentType: .png) { _ in exportFiles = [] }
             .confirmationDialog("Delete everything in the album?", isPresented: $confirmDeleteAll) {
                 Button("Delete All Photos & Trips", role: .destructive) { album.deleteAll() }
             } message: {
@@ -96,6 +106,18 @@ struct AlbumView: View {
         #if os(macOS)
         .frame(minWidth: 540, minHeight: 600)
         #endif
+    }
+
+    /// Every photo in the album — Deidre and the girls, then each trip's customers — as PNG files.
+    private func saveAll() {
+        var files = album.entries.compactMap { PhotoFile.make($0.spec, date: $0.date) }
+        for event in album.events {
+            for (i, spec) in event.customers.enumerated() {
+                if let f = PhotoFile.make(spec, date: event.date, suffix: " \(event.venue.shortName) \(i + 1)") { files.append(f) }
+            }
+        }
+        exportFiles = files
+        exportingAll = !files.isEmpty
     }
 
     private func trash(_ help: String, _ action: @escaping () -> Void) -> some View {
@@ -145,8 +167,11 @@ struct EntryDetailView: View {
                 }
                 Text(entry.date.formatted(date: .complete, time: .shortened))
                     .font(.system(.subheadline, design: .rounded)).foregroundStyle(.secondary)
-                Button("Delete This Photo", systemImage: "trash", role: .destructive) { confirmDelete = true }
-                    .buttonStyle(.bordered)
+                HStack(spacing: 12) {
+                    SavePhotoButton(spec: entry.spec, date: entry.date)
+                    Button("Delete This Photo", systemImage: "trash", role: .destructive) { confirmDelete = true }
+                        .buttonStyle(.bordered)
+                }
             }
             .padding()
             .frame(maxWidth: .infinity)
@@ -263,7 +288,7 @@ struct EventDetailView: View {
                     } else {
                         LazyVGrid(columns: columns, spacing: 12) {
                             ForEach(Array(event.customers.enumerated()), id: \.offset) { i, spec in
-                                CustomerCard(spec: spec) { pendingCustomer = i }
+                                CustomerCard(spec: spec, date: event.date) { pendingCustomer = i }
                             }
                         }
                     }
@@ -299,6 +324,7 @@ struct EventDetailView: View {
 
 private struct CustomerCard: View {
     let spec: PersonSpec
+    let date: Date
     let delete: () -> Void
 
     var body: some View {
@@ -317,6 +343,7 @@ private struct CustomerCard: View {
                         .background(.yellow.opacity(0.6), in: Capsule())
                 }
                 Spacer()
+                SavePhotoButton(spec: spec, date: date, compact: true)
                 Button(role: .destructive, action: delete) {
                     Image(systemName: "trash")
                 }

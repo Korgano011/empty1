@@ -327,21 +327,6 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
     ctx.fill(collar, with: .color(skinBody))
     fill(ctx, CGRect(x: t.minX, y: t.maxY - h * 0.05, width: t.width, height: h * 0.06), p.pants.color, corner: 3)
 
-    // A necklace or scarf from the accessory store; the jumpsuit covers them when she changes.
-    if p.accessories.contains(.necklace) {
-        for k in 0..<9 {
-            let ang = (20.0 + Double(k) * 17.5) * .pi / 180
-            let bead = CGPoint(x: t.midX + cos(ang) * pose.w * 0.3, y: t.minY + sin(ang) * pose.w * 0.34)
-            ctx.fill(circle(bead, h * (k == 4 ? 0.012 : 0.008)), with: .color(k == 4 ? Color(red: 0.30, green: 0.75, blue: 0.95) : Color(red: 0.98, green: 0.82, blue: 0.25)))
-        }
-    }
-    if p.accessories.contains(.scarf) {
-        let silk = Color(red: 0.88, green: 0.20, blue: 0.48)
-        fill(ctx, CGRect(x: t.midX + pose.w * 0.08, y: t.minY, width: pose.w * 0.2, height: h * 0.12), silk, corner: 2)
-        fill(ctx, CGRect(x: t.midX - pose.w * 0.3, y: t.minY - h * 0.022, width: pose.w * 0.6, height: h * 0.042), silk, corner: h * 0.02)
-        fill(ctx, CGRect(x: t.midX + pose.w * 0.08, y: t.minY + h * 0.1, width: pose.w * 0.2, height: h * 0.012), .white.opacity(0.7))
-    }
-
     // The jumpsuit billows out over her clothes.
     let body = layer(lv.body)
     if lv.body > 0 {
@@ -393,16 +378,6 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
     }
     if let tool = p.tool, p.reachTo != nil, !still {
         drawSalonTool(ctx, tool, in: pose.hand[facing < 0 ? 0 : 1], size: h * 0.075)
-    }
-    if p.accessories.contains(.handbag) && !p.seated {
-        let hd = pose.hand[0]
-        let bag = CGRect(x: hd.x - h * 0.05, y: hd.y + h * 0.035, width: h * 0.1, height: h * 0.075)
-        var strap = Path()
-        strap.move(to: CGPoint(x: bag.minX + h * 0.015, y: bag.minY))
-        strap.addQuadCurve(to: CGPoint(x: bag.maxX - h * 0.015, y: bag.minY), control: CGPoint(x: hd.x, y: hd.y - h * 0.035))
-        ctx.stroke(strap, with: .color(Color(red: 0.45, green: 0.22, blue: 0.12)), lineWidth: max(1, h * 0.012))
-        fill(ctx, bag, Color(red: 0.75, green: 0.30, blue: 0.20), corner: h * 0.015)
-        fill(ctx, CGRect(x: bag.midX - h * 0.012, y: bag.minY + h * 0.012, width: h * 0.024, height: h * 0.018), Color(red: 0.98, green: 0.82, blue: 0.25), corner: 1)
     }
     if p.carrying && !still {
         let at = CGPoint(x: t.midX, y: t.minY + t.height * 0.62)
@@ -602,21 +577,6 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
             foam.fill(circle(CGPoint(x: head.x + cos(ang) * hr * 0.95, y: head.y + sin(ang) * hr * 0.95), hr * 0.2), with: .color(Color(white: 0.97)))
         }
     }
-    // A sun hat and a flower from the accessory store; they vanish with her own hair.
-    if p.accessories.contains(.sunHat) {
-        let straw = Color(red: 0.93, green: 0.80, blue: 0.52)
-        fill(hairCtx, CGRect(x: head.x - hr * 0.85, y: head.y - hr * 1.5, width: hr * 1.7, height: hr * 1.0), straw, corner: hr * 0.4)
-        hairCtx.fill(Path(ellipseIn: CGRect(x: head.x - hr * 1.7, y: head.y - hr * 0.85, width: hr * 3.4, height: hr * 0.5)), with: .color(straw))
-        fill(hairCtx, CGRect(x: head.x - hr * 0.85, y: head.y - hr * 0.85, width: hr * 1.7, height: hr * 0.2), Color(red: 0.88, green: 0.20, blue: 0.48))
-    }
-    if p.accessories.contains(.flower) {
-        let c = CGPoint(x: head.x + hr * 0.78, y: head.y - hr * 0.72)
-        for k in 0..<5 {
-            let ang = Double(k) / 5 * 2 * .pi - .pi / 2
-            hairCtx.fill(circle(CGPoint(x: c.x + cos(ang) * hr * 0.2, y: c.y + sin(ang) * hr * 0.2), hr * 0.17), with: .color(Color(red: 1, green: 0.50, blue: 0.72)))
-        }
-        hairCtx.fill(circle(c, hr * 0.12), with: .color(Color(red: 1, green: 0.85, blue: 0.25)))
-    }
     // The mop's curls tumble down over the top of the forehead.
     if kind.hairShape == .mop && a > 0 {
         let colors = kind.hairColors
@@ -643,6 +603,8 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
     let crying = p.mood == .crying && !still && a < 0.5
     // A big open-mouthed smile with happy, crinkled eyes ("Wheeeee!").
     let beaming = p.mood == .beaming && !still
+    // Heavy, half-shut eyelids and a flat mouth: she's somewhere far away.
+    let glum = p.mood == .glum && !still && a < 0.5
     let eyeY = head.y + hr * mix(0.1, -0.02, a)
     for side in [-1.0, 1.0] {
         let e = CGPoint(x: head.x + side * hr * mix(0.35, 0.42, a) + look, y: eyeY)
@@ -696,16 +658,18 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
         }
         // Eyes turn yellow with a small dark pupil.
         ctx.fill(Path(ellipseIn: r), with: .color(.black))
+        if glum {
+            ctx.fill(Path(CGRect(x: r.minX - 1, y: r.minY - 1, width: r.width + 2, height: r.height * 0.55 + 1)), with: .color(p.skin.color))
+            var lid = Path()
+            lid.move(to: CGPoint(x: r.minX - hr * 0.02, y: r.minY + r.height * 0.55))
+            lid.addLine(to: CGPoint(x: r.maxX + hr * 0.02, y: r.minY + r.height * 0.55))
+            ctx.stroke(lid, with: .color(.black), style: StrokeStyle(lineWidth: max(0.9, hr * 0.06), lineCap: .round))
+            continue
+        }
         if a > 0 {
             ctx.fill(Path(ellipseIn: r.insetBy(dx: ew * 0.06, dy: eh * 0.06)), with: .color(Color(red: 1, green: 0.93, blue: 0.45).opacity(a)))
             ctx.fill(circle(CGPoint(x: e.x + look * 0.5, y: e.y), ew * 0.2), with: .color(.black.opacity(a)))
         }
-    }
-    if p.accessories.contains(.sunglasses) {
-        for side in [-1.0, 1.0] {
-            fill(hairCtx, CGRect(x: head.x + side * hr * 0.38 + look - hr * 0.27, y: eyeY - hr * 0.2, width: hr * 0.54, height: hr * 0.4), Color(white: 0.08), corner: hr * 0.14)
-        }
-        fill(hairCtx, CGRect(x: head.x + look - hr * 0.15, y: eyeY - hr * 0.12, width: hr * 0.3, height: hr * 0.07), Color(white: 0.08))
     }
     for dx in [-0.75, 0.45] {
         ctx.fill(Path(ellipseIn: CGRect(x: head.x + hr * dx + look, y: head.y + hr * 0.3, width: hr * 0.3, height: hr * 0.18)),
@@ -741,6 +705,11 @@ func drawPerson(_ ctx: GraphicsContext, _ p: Person, feet: CGPoint, facing: Doub
              Color(red: 1, green: 0.98, blue: 0.9))
         ctx.stroke(open, with: .color(a > 0 ? lipRed.opacity(0.35 + 0.65 * a) : Color(red: 0.55, green: 0.15, blue: 0.15)),
                    lineWidth: max(1, hr * mix(0.06, 0.13, a)))
+    } else if glum {
+        var flat = Path()
+        flat.move(to: CGPoint(x: head.x - hr * 0.2 + look, y: mouthY + hr * 0.04))
+        flat.addLine(to: CGPoint(x: head.x + hr * 0.2 + look, y: mouthY + hr * 0.06))
+        ctx.stroke(flat, with: .color(Color(red: 0.45, green: 0.15, blue: 0.15)), style: StrokeStyle(lineWidth: max(1, hr * 0.07), lineCap: .round))
     } else if shocked {
         let o = CGRect(x: head.x - hr * mix(0.14, 0.3, a) + look, y: mouthY - hr * 0.03, width: hr * mix(0.28, 0.6, a), height: hr * mix(0.32, 0.5, a))
         ctx.fill(Path(ellipseIn: o), with: .color(Color(red: 0.35, green: 0.08, blue: 0.1)))
@@ -858,6 +827,11 @@ func drawSalonTool(_ ctx: GraphicsContext, _ tool: SalonTool, in hand: CGPoint, 
     case .cream:
         fill(ctx, CGRect(x: hand.x - s * 0.3, y: hand.y - s * 0.9, width: s * 0.6, height: s * 1.5), Color(red: 0.20, green: 0.45, blue: 0.85), corner: s * 0.12)
         fill(ctx, CGRect(x: hand.x - s * 0.18, y: hand.y - s * 1.15, width: s * 0.36, height: s * 0.28), .white, corner: 1)
+    case .phone:
+        fill(ctx, CGRect(x: hand.x - s * 0.32, y: hand.y - s * 1.2, width: s * 0.64, height: s * 1.15), Color(white: 0.1), corner: s * 0.12)
+        let glow = sin(Date.now.timeIntervalSinceReferenceDate * 6) > 0
+        fill(ctx, CGRect(x: hand.x - s * 0.25, y: hand.y - s * 1.1, width: s * 0.5, height: s * 0.92),
+             glow ? Color(red: 1, green: 0.55, blue: 0.80) : Color(red: 0.55, green: 0.85, blue: 1), corner: s * 0.06)
     case .razor:
         fill(ctx, CGRect(x: hand.x - s * 0.08, y: hand.y - s * 0.9, width: s * 0.16, height: s * 1.3), Color(red: 1, green: 0.55, blue: 0.75), corner: 1)
         fill(ctx, CGRect(x: hand.x - s * 0.4, y: hand.y - s * 1.1, width: s * 0.8, height: s * 0.22), Color(white: 0.8), corner: 1)

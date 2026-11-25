@@ -23,59 +23,74 @@ enum HairStyle: String, Codable, CaseIterable {
 
 /// What Deidre has in her hand at the styling station.
 enum SalonTool {
-    case clippers, cream, razor
+    case clippers, cream, razor, phone
 }
 
-/// Extras from the accessory store in town; whoever buys one wears it from then on.
-enum Accessory: String, CaseIterable, Identifiable {
-    case flower, scarf, sunglasses, sunHat, necklace, handbag
+/// Upgrades for the S.S. Big Top from the ship-supply shop in town. Once bought they are fitted to the ship for good
+/// and show up on it wherever it docks; the extra deck chairs make room for more passengers.
+enum ShipUpgrade: String, CaseIterable, Identifiable, Codable {
+    case bunting, neonSign, deckChairs, waterSlide, calliope, rainbowHull
 
     var id: Self { self }
 
     var name: String {
         switch self {
-        case .flower: "Hair Flower"
-        case .scarf: "Silk Scarf"
-        case .sunglasses: "Sunglasses"
-        case .sunHat: "Sun Hat"
-        case .necklace: "Necklace"
-        case .handbag: "Handbag"
+        case .bunting: "Party Flags"
+        case .neonSign: "Neon Sign"
+        case .deckChairs: "Deck Chairs"
+        case .waterSlide: "Water Slide"
+        case .calliope: "Calliope"
+        case .rainbowHull: "Rainbow Hull"
         }
     }
 
-    /// For captions: "buys a silk scarf".
+    /// For captions: "buys a water slide".
     var phrase: String {
         switch self {
-        case .flower: "a flower for her hair"
-        case .scarf: "a silk scarf"
-        case .sunglasses: "a pair of sunglasses"
-        case .sunHat: "a sun hat"
-        case .necklace: "a necklace"
-        case .handbag: "a handbag"
+        case .bunting: "strings of party flags"
+        case .neonSign: "a glowing neon sign"
+        case .deckChairs: "five more deck chairs"
+        case .waterSlide: "a twisty water slide"
+        case .calliope: "a steam calliope"
+        case .rainbowHull: "a rainbow paint job for the hull"
+        }
+    }
+
+    /// What it does, under the price in the shop.
+    var blurb: String {
+        switch self {
+        case .deckChairs: "+\(Self.extraSeats) passengers"
+        case .bunting: "Flags stem to stern"
+        case .neonSign: "BIG TOP in lights"
+        case .waterSlide: "Off the top deck"
+        case .calliope: "Steam pipes & music"
+        case .rainbowHull: "Rainbow stripe"
         }
     }
 
     var emoji: String {
         switch self {
-        case .flower: "🌸"
-        case .scarf: "🧣"
-        case .sunglasses: "🕶️"
-        case .sunHat: "👒"
-        case .necklace: "📿"
-        case .handbag: "👜"
+        case .bunting: "🎏"
+        case .neonSign: "💡"
+        case .deckChairs: "🪑"
+        case .waterSlide: "🛝"
+        case .calliope: "🎹"
+        case .rainbowHull: "🌈"
         }
     }
 
     var price: Int {
         switch self {
-        case .flower: 10
-        case .scarf: 15
-        case .sunglasses: 20
-        case .sunHat: 25
-        case .necklace: 30
-        case .handbag: 40
+        case .bunting: 15
+        case .neonSign: 25
+        case .deckChairs: 30
+        case .waterSlide: 40
+        case .calliope: 50
+        case .rainbowHull: 60
         }
     }
+
+    static let extraSeats = 5
 }
 
 /// Something to park in the driveway, bought out of the savings in the bank.
@@ -106,7 +121,8 @@ enum Vehicle: String, CaseIterable, Identifiable {
     }
 }
 
-enum Mood { case happy, shocked, crying, beaming }
+/// `glum` is the flat, faraway look of someone just going through the motions.
+enum Mood { case happy, shocked, crying, beaming, glum }
 
 /// How an alien clown wears its hair.
 enum ClownHair {
@@ -386,6 +402,47 @@ enum Machine {
     static let customerChange = 22.0
 }
 
+/// One run of the mini saucers, the Roswell Transformation Casino way: fly out, hum and glow, beam, sparkle, cool with mist, fly home.
+enum SaucerRun {
+    /// The flight from the machine on deck to just over her head.
+    static let lower = 1.2
+    /// The saucer hums and glows brighter before the beam switches on.
+    static let charge = 2.2
+    /// Under the beam: feet first, then the body, then the face.
+    static let beam = 10.0
+    /// Sparkles settle the change in.
+    static let sparkle = 2.6
+    /// The saucer cools down with a puff of mist before it flies home.
+    static let cool = 3.0
+    /// A flight off the ship, across the yard and into a house.
+    static let longFlight = 5.0
+    static func total(flight: Double) -> Double { charge + beam + sparkle + cool + 2 * flight }
+
+    enum Phase { case lowering, charging, beaming, sparkling, cooling, lifting, done }
+
+    static func phase(_ t: Double, flight: Double = lower) -> (Phase, Double) {
+        var start = 0.0
+        for (phase, length) in [(Phase.lowering, flight), (.charging, charge), (.beaming, beam), (.sparkling, sparkle), (.cooling, cool), (.lifting, flight)] {
+            if t < start + length { return (phase, max(0, (t - start) / length)) }
+            start += length
+        }
+        return (.done, 1)
+    }
+}
+
+/// Funland's rides the repo men haul off the night the park goes out of business.
+enum ParkRide: Hashable { case ferrisWheel, coaster }
+
+/// One of Funland's maintenance zambonis: driven by `rider`, or parked at `parkedX`. Once the repo men take it,
+/// `slot` is its place on their flatbed and `loadT0` when they started winching it up.
+final class ParkZamboni {
+    var rider: Person?
+    var parkedX: Double
+    var slot: Double?
+    var loadT0 = Date.distantPast
+    init(at x: Double) { parkedX = x }
+}
+
 final class Person: Identifiable {
     let id: String
     let height: Double
@@ -409,11 +466,13 @@ final class Person: Identifiable {
     var moveDur = 0.0
     var facing = 1.0
 
-    /// Height above the ground: the beam lifts people up into the tent and sets them back down.
+    /// Height above the ground: walking up or down the ship's gangway.
     private var y0 = 0.0
     private var y1 = 0.0
     private var riseT0 = Date.distantPast
     private var riseDur = 0.0
+    /// Climbing at a steady pace (on the gangway) rather than easing in and out.
+    private var riseLinear = false
 
     var mood = Mood.happy
     var says: String?
@@ -434,8 +493,6 @@ final class Person: Identifiable {
     var shaved = 0.0
     /// A clear plastic processing cap over a hair treatment.
     var cap = false
-    /// What she has bought at the accessory store and now wears.
-    var accessories: Set<Accessory> = []
 
     /// The type of alien clown she is turning (or has turned) into.
     var clown: ClownKind?
@@ -487,16 +544,17 @@ final class Person: Identifiable {
         if t >= riseDur { return y1 }
         if t <= 0 { return y0 }
         let u = t / riseDur
-        return y0 + (y1 - y0) * u * u * (3 - 2 * u)
+        return y0 + (y1 - y0) * (riseLinear ? u : u * u * (3 - 2 * u))
     }
 
-    /// Floats up (or down) to `height` above the ground over `seconds`.
-    func float(to height: Double, over seconds: Double) {
+    /// Rises (or comes down) to `height` above the ground over `seconds`; `linear` keeps a steady pace.
+    func float(to height: Double, over seconds: Double, linear: Bool = false) {
         let now = Date.now
         y0 = rise(at: now)
         y1 = height
         riseT0 = now
         riseDur = seconds
+        riseLinear = linear
     }
 
     /// Puts her at a height straight away.
@@ -576,14 +634,21 @@ extension Person {
 
 /// Where the flying tent takes the three women to transform customers.
 enum Venue: String, Codable, CaseIterable, Identifiable {
-    case wildwood, lasVegas, nassau, bimini, cocoCay, catalina, stKitts, pisa, paris, laBufadora
+    case wildwood, oceanCity, greatStirrupCay, nassau, bimini, cocoCay, catalina, stKitts, pisa, paris, laBufadora
 
     var id: Self { self }
+
+    /// Old album photos taken in Las Vegas (since replaced by Great Stirrup Cay) still load.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = Venue(rawValue: raw) ?? .greatStirrupCay
+    }
 
     var name: String {
         switch self {
         case .wildwood: "Wildwood, NJ"
-        case .lasVegas: "Las Vegas"
+        case .oceanCity: "Ocean City, NJ"
+        case .greatStirrupCay: "Great Stirrup Cay"
         case .nassau: "Nassau, Bahamas"
         case .bimini: "Bimini, Bahamas"
         case .cocoCay: "Coco Cay"
@@ -598,7 +663,8 @@ enum Venue: String, Codable, CaseIterable, Identifiable {
     var shortName: String {
         switch self {
         case .wildwood: "Wildwood"
-        case .lasVegas: "Fremont Street"
+        case .oceanCity: "Ocean City"
+        case .greatStirrupCay: "Great Stirrup Cay"
         case .nassau: "Queen's Staircase"
         case .bimini: "Bimini"
         case .catalina: "Catalina"
@@ -613,7 +679,8 @@ enum Venue: String, Codable, CaseIterable, Identifiable {
     var theName: String {
         switch self {
         case .wildwood: "the boardwalk in Wildwood, New Jersey"
-        case .lasVegas: "Fremont Street in Las Vegas"
+        case .oceanCity: "the boardwalk in Ocean City, New Jersey"
+        case .greatStirrupCay: "Great Stirrup Cay in the Berry Islands"
         case .nassau: "the Queen's Staircase in Nassau"
         case .bimini: "Bimini in the Bahamas"
         case .cocoCay: "Coco Cay"
@@ -628,7 +695,8 @@ enum Venue: String, Codable, CaseIterable, Identifiable {
     var blurb: String {
         switch self {
         case .wildwood: "Boardwalk crowds by the pier"
-        case .lasVegas: "Fremont Street under the neon"
+        case .oceanCity: "Families by the Music Pier"
+        case .greatStirrupCay: "Beachgoers by the old lighthouse"
         case .nassau: "Tourists at the 66 steps"
         case .bimini: "Island hoppers on the beach"
         case .cocoCay: "Cruise passengers ashore"
@@ -643,7 +711,8 @@ enum Venue: String, Codable, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .wildwood: "beach.umbrella.fill"
-        case .lasVegas: "dice.fill"
+        case .oceanCity: "water.waves"
+        case .greatStirrupCay: "sun.max.fill"
         case .nassau: "stairs"
         case .bimini: "fish.fill"
         case .cocoCay: "ferry.fill"
@@ -660,7 +729,8 @@ enum Venue: String, Codable, CaseIterable, Identifiable {
     var fee: Int {
         switch self {
         case .wildwood: 40
-        case .lasVegas: 60
+        case .oceanCity: 45
+        case .greatStirrupCay: 115
         case .nassau: 100
         case .bimini: 110
         case .cocoCay: 120
@@ -674,7 +744,8 @@ enum Venue: String, Codable, CaseIterable, Identifiable {
     var price: Int {
         switch self {
         case .wildwood: 20
-        case .lasVegas: 26
+        case .oceanCity: 22
+        case .greatStirrupCay: 40
         case .nassau: 36
         case .bimini: 38
         case .cocoCay: 40
@@ -693,19 +764,14 @@ enum Venue: String, Codable, CaseIterable, Identifiable {
     /// Chance a passer-by is a kid out with their mother (rather than a grown-up on their own).
     var kidChance: Double {
         switch self {
-        case .wildwood, .cocoCay: 0.6
-        case .lasVegas: 0.25
+        case .wildwood, .oceanCity, .cocoCay: 0.6
+        case .greatStirrupCay: 0.5
         case .pisa, .paris: 0.35
         default: 0.45
         }
     }
     var kidYes: Double { 0.8 }
-    var adultYes: Double {
-        switch self {
-        case .lasVegas: 0.75
-        default: 0.7
-        }
-    }
+    var adultYes: Double { 0.7 }
     /// A mother is more likely to join in if her kid just said yes.
     var momYes: Double { 0.6 }
 }
