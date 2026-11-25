@@ -1549,7 +1549,7 @@ struct NightResult {
             startBanked(newcomers)
             return
         }
-        if [.pepper, .spades, .dominoHearts, .fourHundred].contains(tonightGame) {
+        if [.pepper, .spades, .dominoHearts, .fourHundred, .allFours, .allFives, .knaves].contains(tonightGame) {
             startTricks(newcomers)
             return
         }
@@ -1904,7 +1904,10 @@ struct NightResult {
         var players = [TrickTable.Player(id: 0, name: "Lavender", wasName: "Larry", skin: you.skin, look: you.girl, isHuman: true)]
         players.append(seat(1, newcomers[0]))
         players.append(TrickTable.Player(id: 2, name: "Princess", wasName: "Princess", skin: princess.skin, look: princess.girl, isPrincess: true))
-        players.append(seat(3, newcomers.count > 1 ? newcomers[1] : newcomers[0]))
+        // Knaves is three-handed: you, one newcomer and the Princess.
+        if tonightGame != .knaves {
+            players.append(seat(3, newcomers.count > 1 ? newcomers[1] : newcomers[0]))
+        }
         let t = TrickTable(game: tonightGame, players: players, sound: sound, pace: save.has(.shuffler) ? 1.6 : 1)
         t.onFinished = { [weak self] in self?.finishTricks() }
         tricks = t

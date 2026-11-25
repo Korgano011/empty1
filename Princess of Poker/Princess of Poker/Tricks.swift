@@ -6,9 +6,10 @@ struct BidOption: Hashable {
     let value: Int
 }
 
-/// Spades, Pepper, Domino Hearts and 400 at the salon's card table, just for fun — nobody bets.
+/// Spades, Pepper, Domino Hearts, 400, Big 4s, All Fives and Knaves at the salon's card table, just for fun — nobody bets.
 /// Four-handed: you (bottom), a newcomer on the left, the Princess across, a newcomer on the right.
-/// In Spades, Pepper and 400 you and the Princess are partners; Domino Hearts is everyone for herself.
+/// Knaves is three-handed: you, one newcomer on the left and the Princess at the top.
+/// In Spades, Pepper, 400 and Big 4s you and the Princess are partners; the others are everyone for herself.
 @Observable final class TrickTable {
     struct Player: Identifiable {
         let id: Int
@@ -30,6 +31,8 @@ struct BidOption: Hashable {
         var taken: [Card] = []
         /// Domino Hearts: out of cards with the stock empty — out of this hand.
         var out = false
+        /// All Fives: points taken this hand.
+        var handPts = 0
     }
 
     /// What the table is waiting on you for.
@@ -57,6 +60,12 @@ struct BidOption: Hashable {
     var banner: String?
     var finished = false
     var winnerText = ""
+    /// All Fives: cards in the current trick laid face down as Magenta 5s.
+    var magentaIDs: Set<Int> = []
+    /// All Fives: Lavender's next card goes face down as a Magenta 5.
+    var magentaMode = false
+    /// Big 4s: the hands as dealt (High and Low go to whoever was dealt them).
+    private var dealtHands: [[Card]] = []
 
     var ask = Ask.none
     private var cont: CheckedContinuation<Int, Never>?
@@ -70,11 +79,13 @@ struct BidOption: Hashable {
         self.players = players
         self.sound = sound
         self.pace = pace
-        dealer = Int.random(in: 0..<4)
+        dealer = Int.random(in: 0..<players.count)
     }
 
     var human: Player { players[0] }
-    var partnerships: Bool { game != .dominoHearts }
+    /// Seats at the table: 3 for Knaves, otherwise 4.
+    var seats: Int { players.count }
+    var partnerships: Bool { [.spades, .pepper, .fourHundred, .allFours].contains(game) }
     func team(_ seat: Int) -> Int { seat % 2 }
     var teamNames: [String] { ["Lavender & Princess", "\(players[1].name) & \(players[3].name)"] }
 
@@ -83,6 +94,9 @@ struct BidOption: Hashable {
         case .spades: 200
         case .pepper: 30
         case .fourHundred: 41
+        case .allFours: 11
+        case .knaves: 20
+        case .allFives: Self.fivesGoal
         default: 31
         }
     }
@@ -91,17 +105,48 @@ struct BidOption: Hashable {
         switch game {
         case .dominoHearts: "Lowest wins · game ends at 31"
         case .fourHundred: "Hearts are trumps · 41 with partner above 0"
+        case .allFours: "High, Low, Jack, Game · first to 11"
+        case .knaves: "1 a trick · jacks cost 4/3/2/1 · first to 20"
+        case .allFives: "Closest to \(Self.fivesGoal) in \(Self.fivesHands) hands · ♠ trumps · Magenta 5s"
         default: "First to \(target)"
         }
     }
 
     var humanToPlay: Bool { ask == .play && cont != nil }
-    var legalForHuman: Set<Int> { humanToPlay ? Set(legal(0).map(\.id)) : [] }
-    /// Domino Hearts: lowest score so far — the leader (or, at the end, the winner).
+    var legalForHuman: Set<Int> {
+        guard humanToPlay else { return [] }
+        // A Magenta 5 can be any card, whatever was led.
+        return Set((magentaMode ? human.hand : legal(0)).map(\.id))
+    }
+    /// The leader so far (or, at the end, the winner): lowest in Domino Hearts, highest in Knaves,
+    /// closest to 25 without going over in All Fives (if everyone busts, the smallest bust).
     var leaders: [Int] {
         let scores = players.map(\.score)
-        let best = scores.min() ?? 0
+        let best: Int
+        switch game {
+        case .dominoHearts: best = scores.min() ?? 0
+        case .allFives: best = scores.filter { $0 <= Self.fivesGoal }.max() ?? (scores.min() ?? 0)
+        default: best = scores.max() ?? 0
+        }
         return players.indices.filter { players[$0].score == best }
+    }
+
+    // MARK: All Fives
+
+    static let fivesGoal = 25
+    static let fivesHands = 4
+
+    /// What a winning card adds to its owner's tally in All Fives: 2–10 = 1, J/Q/K = 2, A = 3, a Magenta 5 = 5.
+    func fivesValue(_ c: Card, magenta: Bool) -> Int {
+        if magenta { return 5 }
+        return c.rank == 14 ? 3 : c.rank >= 11 ? 2 : 1
+    }
+
+    func isMagenta(_ c: Card) -> Bool { game == .allFives && magentaIDs.contains(c.id) }
+
+    func toggleMagenta() {
+        guard humanToPlay else { return }
+        magentaMode.toggle()
     }
 
     // MARK: Your answers
@@ -168,7 +213,11 @@ struct BidOption: Hashable {
     /// Who's winning a trick so far.
     private func winning(_ t: [(seat: Int, card: Card)]) -> Int {
         let led = suitOf(t[0].card)
+        let ledMagenta = isMagenta(t[0].card)
         func power(_ c: Card) -> Int {
+            // All Fives: a face-down Magenta 5 is its own colour, worth 5 — it can only win a trick led with a Magenta 5 (the first one stands).
+            if isMagenta(c) { return ledMagenta ? 105 : 0 }
+            if ledMagenta && !isTrump(c) { return 0 }
             if isTrump(c) { return 500 + strength(c) }
             if suitOf(c) == led { return 100 + strength(c) }
             return 0
@@ -186,6 +235,8 @@ struct BidOption: Hashable {
             }
             return hand
         }
+        // A Magenta 5 led: nobody holds that colour, so anything goes.
+        if isMagenta(trick[0].card) { return hand }
         let led = suitOf(trick[0].card)
         let follow = hand.filter { suitOf($0) == led }
         return follow.isEmpty ? hand : follow
@@ -209,7 +260,7 @@ struct BidOption: Hashable {
             await playHand()
             if Task.isCancelled { return }
             if gameOver() { break }
-            dealer = (dealer + 1) % 4
+            dealer = (dealer + 1) % seats
         }
         turn = nil
         trick = []
@@ -221,6 +272,14 @@ struct BidOption: Hashable {
     }
 
     private func gameOver() -> Bool {
+        if game == .allFives {
+            guard handNumber >= Self.fivesHands else { return false }
+            let w = leaders
+            let bust = players.allSatisfy { $0.score > Self.fivesGoal }
+            winnerText = w.map { players[$0].name }.joined(separator: " & ") + " win\(w.count == 1 ? "s" : "") with \(players[w[0]].score)"
+                + (bust ? " — everybody busted, smallest bust wins." : players[w[0]].score == Self.fivesGoal ? " — exactly \(Self.fivesGoal)!" : ".")
+            return true
+        }
         if game == .fourHundred {
             // A team wins when one partner reaches 41 and the other has a score above zero.
             let done = (0..<2).filter { t in
@@ -248,8 +307,8 @@ struct BidOption: Hashable {
 
     private func deal(_ count: Int, from d: inout [Card]) async {
         for _ in 0..<count {
-            for k in 1...4 {
-                let i = (dealer + k) % 4
+            for k in 1...seats {
+                let i = (dealer + k) % seats
                 players[i].hand.append(d.removeFirst())
             }
             sound.card()
@@ -273,10 +332,13 @@ struct BidOption: Hashable {
             players[i].note = ""
             players[i].taken = []
             players[i].out = false
+            players[i].handPts = 0
         }
+        magentaIDs = []
+        magentaMode = false
         var d = deck()
         message = "Hand \(handNumber). \(players[dealer].name) deals."
-        var leader = (dealer + 1) % 4
+        var leader = (dealer + 1) % seats
 
         switch game {
         case .spades:
@@ -301,6 +363,27 @@ struct BidOption: Hashable {
                 }
                 d = deck()
             }
+        case .allFours:
+            // 6 each; the next card is turned up for trumps.
+            await deal(6, from: &d)
+            let up = d.removeFirst()
+            trump = up.suit
+            dealtHands = players.map(\.hand)
+            contract = "Turned up \(up.text) · \(up.suit.symbol) trumps"
+            message = "The \(up.text) is turned up — \(up.suit.symbol) are trumps."
+            await wait(1.4)
+        case .knaves:
+            // 17 each from the full deck; the last card is turned for trumps.
+            await deal(17, from: &d)
+            let up = d.removeFirst()
+            trump = up.suit
+            contract = "Turned \(up.text) · \(up.suit.symbol) trumps · avoid the jacks"
+            message = "The \(up.text) is turned — \(up.suit.symbol) are trumps."
+            await wait(1.4)
+        case .allFives:
+            trump = .spades
+            await deal(13, from: &d)
+            contract = "Hand \(handNumber) of \(Self.fivesHands) · ♠ silver trumps · aim for \(Self.fivesGoal)"
         default:
             await deal(6, from: &d)
             stock = d
@@ -318,7 +401,7 @@ struct BidOption: Hashable {
     private func playTricks(leader first: Int) async {
         var leader = first
         while !Task.isCancelled {
-            let active = (0..<4).map { (leader + $0) % 4 }.filter { !players[$0].out }
+            let active = (0..<seats).map { (leader + $0) % seats }.filter { !players[$0].out }
             if game == .dominoHearts {
                 if active.count <= 1 { break }
             } else if players[leader].hand.isEmpty {
@@ -326,6 +409,7 @@ struct BidOption: Hashable {
             }
             trick = []
             trickWinner = nil
+            magentaIDs = []
             for i in active {
                 turn = i
                 if game == .dominoHearts {
@@ -337,16 +421,31 @@ struct BidOption: Hashable {
                     await drawToFollow(i)
                 }
                 let card: Card
+                var magenta = false
                 if players[i].isHuman {
                     let options = legal(0)
                     let lead = trick.isEmpty
-                    let id = await ask(.play, lead ? "Lavender's lead." : "Lavender's turn — follow \(suitOf(trick[0].card).symbol) if she can.")
+                    let text: String
+                    if game == .allFives {
+                        let led = lead ? "" : (isMagenta(trick[0].card) ? " A Magenta 5 was led — play anything." : " Follow \(suitOf(trick[0].card).symbol) if she can,")
+                        text = (lead ? "Lavender's lead." : "Lavender's turn.\(led)") + " Or lay any card face down as a Magenta 5. (\(human.score) of \(Self.fivesGoal))"
+                    } else {
+                        text = lead ? "Lavender's lead." : "Lavender's turn — follow \(suitOf(trick[0].card).symbol) if she can."
+                    }
+                    magentaMode = false
+                    let id = await ask(.play, text)
                     card = human.hand.first { $0.id == id } ?? options[0]
+                    magenta = game == .allFives && magentaMode
+                    magentaMode = false
                 } else {
                     await wait(0.7)
-                    card = choose(i)
+                    if game == .allFives {
+                        (card, magenta) = chooseFives(i)
+                    } else {
+                        card = choose(i)
+                    }
                 }
-                play(i, card)
+                play(i, card, magenta: magenta)
             }
             turn = nil
             guard !trick.isEmpty else { break }
@@ -356,6 +455,18 @@ struct BidOption: Hashable {
             players[w].taken += trick.map(\.card)
             let hearts = trick.filter { $0.card.suit == .hearts }.count
             message = "\(players[w].name) takes the trick" + (game == .dominoHearts && hearts > 0 ? " — \(hearts) heart\(hearts == 1 ? "" : "s")." : ".")
+            if game == .allFives {
+                // Only her own winning card counts.
+                let card = trick.first { $0.seat == w }!.card
+                let v = fivesValue(card, magenta: isMagenta(card))
+                players[w].handPts += v
+                players[w].score += v
+                message = "\(players[w].name) takes the trick with \(isMagenta(card) ? "a Magenta 5" : "the \(card.text)") · +\(v)"
+                    + (players[w].score > Self.fivesGoal ? " — BUST!" : players[w].score == Self.fivesGoal ? " — exactly \(Self.fivesGoal)!" : "")
+            }
+            if game == .knaves, let j = trick.first(where: { $0.card.rank == 11 }) {
+                message += " The J\(j.card.suit.symbol) costs her!"
+            }
             await wait(1.3)
             leader = w
             if game == .dominoHearts {
@@ -377,10 +488,15 @@ struct BidOption: Hashable {
         }
         trick = []
         trickWinner = nil
+        magentaIDs = []
     }
 
-    private func play(_ i: Int, _ card: Card) {
+    private func play(_ i: Int, _ card: Card, magenta: Bool = false) {
         players[i].hand.removeAll { $0.id == card.id }
+        if magenta {
+            magentaIDs.insert(card.id)
+            message = "\(players[i].name) lays a card face down — a Magenta 5!"
+        }
         trick.append((i, card))
         if card.suit == .spades { spadesBroken = true }
         sound.card()
@@ -459,6 +575,53 @@ struct BidOption: Hashable {
             for t in 0..<2 { teamScore[t] = players[t].score + players[t + 2].score }
             if human.tricks >= (human.bid ?? 2) { sound.chime() }
             banner = "Hand \(handNumber): " + players.map { "\($0.name) \($0.score)" }.joined(separator: " · ")
+        case .allFours:
+            // Partners score together. High and Low go to whoever was dealt them, Jack to whoever wins it,
+            // Game to the team with the most card points (10 = 10, A = 4, K = 3, Q = 2, J = 1; a tie scores nobody).
+            guard let t = trump else { return }
+            var got: [String] = []
+            var pts = [0, 0]
+            let trumps = dealtHands.enumerated().flatMap { s, cards in cards.filter { $0.suit == t }.map { (s, $0) } }
+            if let hi = trumps.max(by: { $0.1.rank < $1.1.rank }) { pts[team(hi.0)] += 1; got.append("High \(hi.1.text): \(players[hi.0].name)") }
+            if let lo = trumps.min(by: { $0.1.rank < $1.1.rank }) { pts[team(lo.0)] += 1; got.append("Low \(lo.1.text): \(players[lo.0].name)") }
+            if let j = players.indices.first(where: { players[$0].taken.contains { $0.rank == 11 && $0.suit == t } }) {
+                pts[team(j)] += 1
+                got.append("Jack: \(players[j].name)")
+            } else {
+                got.append("Jack not dealt")
+            }
+            let cardPts = (0..<2).map { tm in (players[tm].taken + players[tm + 2].taken).reduce(0) { $0 + gamePoints($1) } }
+            if cardPts[0] != cardPts[1] {
+                let w = cardPts[0] > cardPts[1] ? 0 : 1
+                pts[w] += 1
+                got.append("Game \(cardPts[w])–\(cardPts[1 - w]): \(teamNames[w])")
+            } else {
+                got.append("Game tied \(cardPts[0])–\(cardPts[1])")
+            }
+            for tm in 0..<2 { teamScore[tm] += pts[tm] }
+            if pts[0] > pts[1] { sound.chime() }
+            banner = got.joined(separator: " · ")
+        case .knaves:
+            // A point a trick; the jacks cost whoever takes them: ♥ 4, ♦ 3, ♣ 2, ♠ 1.
+            var jacks: [String] = []
+            for i in players.indices {
+                var pts = players[i].tricks
+                for (penalty, suit) in [(4, Suit.hearts), (3, .diamonds), (2, .clubs), (1, .spades)]
+                    where players[i].taken.contains(where: { $0.rank == 11 && $0.suit == suit }) {
+                    pts -= penalty
+                    jacks.append("\(players[i].name) J\(suit.symbol) −\(penalty)")
+                }
+                players[i].score += pts
+                players[i].note = "\(pts >= 0 ? "+" : "")\(pts)"
+            }
+            banner = "Hand \(handNumber): " + players.map { "\($0.name) \($0.score)" }.joined(separator: " · ")
+                + (jacks.isEmpty ? "" : " · " + jacks.joined(separator: ", "))
+        case .allFives:
+            for i in players.indices {
+                players[i].note = "+\(players[i].handPts)" + (players[i].score > Self.fivesGoal ? " BUST" : "")
+            }
+            if human.score == Self.fivesGoal { sound.chime() }
+            banner = "Hand \(handNumber) of \(Self.fivesHands): " + players.map { "\($0.name) \($0.score)\($0.score > Self.fivesGoal ? " bust" : "")" }.joined(separator: " · ")
         default:
             for i in players.indices {
                 let pts = players[i].taken.filter { $0.suit == .hearts }.count
@@ -466,6 +629,18 @@ struct BidOption: Hashable {
                 players[i].note = pts > 0 ? "+\(pts)♥" : ""
             }
             banner = "Hand \(handNumber): " + players.map { "\($0.name) \($0.score)" }.joined(separator: " · ")
+        }
+    }
+
+    /// Big 4s "game" points: 10 = 10, A = 4, K = 3, Q = 2, J = 1.
+    private func gamePoints(_ c: Card) -> Int {
+        switch c.rank {
+        case 10: 10
+        case 14: 4
+        case 13: 3
+        case 12: 2
+        case 11: 1
+        default: 0
         }
     }
 
@@ -641,6 +816,38 @@ struct BidOption: Hashable {
         }
     }
 
+    /// All Fives: take tricks with cheap winners while behind the pace, dodge once close to 25.
+    /// She's a little sloppy on purpose — sometimes she just tosses a card, and doesn't always think to dodge with a Magenta 5.
+    private func chooseFives(_ i: Int) -> (Card, Bool) {
+        let hand = players[i].hand
+        let options = legal(i)
+        let room = Self.fivesGoal - players[i].score
+        let handsLeft = max(1, Self.fivesHands - handNumber + 1)
+        let wants = room > 0 && Double(room) - Double(handsLeft - 1) * 3.0 >= 1
+        if Double.random(in: 0..<1) < 0.2 { return (options.randomElement()!, false) }
+        let rank = { (c: Card) in (c.suit == .spades ? 100 : 0) + c.rank }
+        let lowest = hand.min { rank($0) < rank($1) }!
+        if trick.isEmpty {
+            if wants {
+                if (5...7).contains(room) { return (lowest, true) }
+                if let top = options.filter({ fivesValue($0, magenta: false) <= room }).max(by: { rank($0) < rank($1) }), top.rank >= 12 {
+                    return (top, false)
+                }
+            }
+            return (lowest, false)
+        }
+        let beating = options.filter { winning(trick + [(i, $0)]) == i }
+        if wants {
+            if let c = beating.filter({ fivesValue($0, magenta: false) <= room }).min(by: { rank($0) < rank($1) }) { return (c, false) }
+            return (options.min { rank($0) < rank($1) }!, false)
+        }
+        let losing = options.filter { winning(trick + [(i, $0)]) != i }
+        if let c = losing.max(by: { rank($0) < rank($1) }) { return (c, false) }
+        // Every card she could play would win: lay her smallest face down as a Magenta 5 — if she thinks of it.
+        if Double.random(in: 0..<1) < 0.35 { return (lowest, true) }
+        return (options.min { rank($0) < rank($1) }!, false)
+    }
+
     private func choose(_ i: Int) -> Card {
         let options = legal(i)
         if options.count == 1 { return options[0] }
@@ -727,7 +934,16 @@ struct TrickView: View {
 
                     ForEach(table.trick, id: \.card.id) { play in
                         let p = trickSpots[play.seat]
-                        CardView(card: play.card, width: min(50, size.width * 0.12))
+                        CardView(card: play.card, faceUp: !table.isMagenta(play.card), width: min(50, size.width * 0.12))
+                            .overlay {
+                                if table.isMagenta(play.card) {
+                                    Text("5")
+                                        .font(.system(size: 22, weight: .black, design: .rounded))
+                                        .foregroundStyle(.white)
+                                        .padding(6)
+                                        .background(Circle().fill(Color(red: 0.9, green: 0.0, blue: 0.55)))
+                                }
+                            }
                             .overlay {
                                 if table.trickWinner == play.seat {
                                     RoundedRectangle(cornerRadius: 5).strokeBorder(Color.yellow, lineWidth: 3)
@@ -785,6 +1001,12 @@ struct TrickView: View {
         }
         if table.game == .fourHundred {
             return "\(p.score) pts" + (p.bid.map { " · \(p.tricks)/\($0)" } ?? "")
+        }
+        if table.game == .knaves {
+            return "\(p.score) pts · \(p.tricks) trick\(p.tricks == 1 ? "" : "s")"
+        }
+        if table.game == .allFives {
+            return "\(p.score)/\(TrickTable.fivesGoal)" + (p.score > TrickTable.fivesGoal ? " BUST" : p.handPts > 0 ? " · +\(p.handPts)" : "")
         }
         return p.tricks > 0 || p.bid != nil ? "\(p.tricks) trick\(p.tricks == 1 ? "" : "s")" : ""
     }
@@ -872,6 +1094,20 @@ struct TrickView: View {
                     .buttonStyle(.plain)
                 }
             }
+        case .play where table.game == .allFives:
+            HStack {
+                Text(table.magentaMode ? "Tap any card to lay it face down as a Magenta 5." : "Tap a raised card to play it.")
+                    .font(.system(.callout, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.75))
+                Spacer()
+                Button { table.toggleMagenta() } label: {
+                    Label(table.magentaMode ? "Magenta 5 on" : "Magenta 5", systemImage: table.magentaMode ? "checkmark.circle.fill" : "5.circle")
+                        .font(.system(.subheadline, design: .rounded, weight: .heavy))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(table.magentaMode ? Color(red: 0.9, green: 0.0, blue: 0.55) : .gray)
+            }
+            .frame(minHeight: 46)
         case .play:
             waiting("Lavender's turn — tap a raised card to play it.")
         case .none:

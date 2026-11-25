@@ -35,10 +35,10 @@ import SwiftUI
     /// Blackjack, pai gow poker and craps are played at their own banked tables (`BlackjackTable`, `PaiGowTable`, `CrapsTable`) for real money,
     /// and so are three card poker, let it ride, red dog, mississippi stud and crazy 4 poker (`BankedTable`).
     /// Hearts, nines, pedro and pişti are played at their own tables (`HeartsTable`, `NinesTable`, `PedroTable`, `PistiTable`) just for fun — they make no money;
-    /// so are pepper, spades and domino hearts (`TrickTable`).
+    /// so are pepper, spades, domino hearts, 400, big 4s, all fives and knaves (`TrickTable`).
     enum Game: CaseIterable {
         case texas, omaha, draw, caribbean, blackjack, paigow, craps, threeCard, letItRide, redDog, mississippiStud, crazy4
-        case hearts, nines, pedro, pisti, big2, ninetyNine, ohHell, californiaJack, pepper, spades, dominoHearts, fourHundred
+        case hearts, nines, pedro, pisti, big2, ninetyNine, ohHell, californiaJack, pepper, spades, dominoHearts, fourHundred, allFours, allFives, knaves
         /// The day-by-day rotation: the money-makers, then a game of hearts.
         static let rotation: [Game] = [.texas, .omaha, .caribbean, .blackjack, .paigow, .craps, .hearts]
         static func forNight(_ night: Int) -> Game {
@@ -70,6 +70,9 @@ import SwiftUI
             case .spades: "Spades"
             case .dominoHearts: "Domino Hearts"
             case .fourHundred: "400"
+            case .allFours: "Big 4s"
+            case .allFives: "All Fives"
+            case .knaves: "Knaves"
             }
         }
         var icon: String {
@@ -98,6 +101,9 @@ import SwiftUI
             case .spades: "suit.spade"
             case .dominoHearts: "heart.circle.fill"
             case .fourHundred: "suit.heart"
+            case .allFours: "4.square.fill"
+            case .allFives: "5.circle.fill"
+            case .knaves: "person.3.fill"
             }
         }
         /// The afternoon game: the next game in the rotation after the morning's (never the same one).
@@ -111,12 +117,13 @@ import SwiftUI
         var pitch: String { isForFun || self == .blackjack || self == .paigow || self == .craps || self == .redDog ? "a girls game of \(name.lowercased())" : "a girls poker game" }
         /// Hearts, nines, pedro and pişti: no money on the table.
         var isForFun: Bool { self == .hearts || self == .nines || self == .pedro || self == .pisti || self == .big2 || self == .ninetyNine || self == .ohHell || self == .californiaJack
-            || self == .pepper || self == .spades || self == .dominoHearts || self == .fourHundred }
+            || self == .pepper || self == .spades || self == .dominoHearts || self == .fourHundred
+            || self == .allFours || self == .allFives || self == .knaves }
         /// Passersby to invite: hearts, pedro and pişti need two to make four, nines one to make three; poker seats up to three.
         var newcomerSeats: Int {
             switch self {
-            case .hearts, .pedro, .pisti, .big2, .ninetyNine, .ohHell, .californiaJack, .pepper, .spades, .dominoHearts, .fourHundred: 2
-            case .nines: 1
+            case .hearts, .pedro, .pisti, .big2, .ninetyNine, .ohHell, .californiaJack, .pepper, .spades, .dominoHearts, .fourHundred, .allFours, .allFives: 2
+            case .nines, .knaves: 1
             default: 3
             }
         }
